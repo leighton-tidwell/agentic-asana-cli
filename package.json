@@ -31,7 +31,11 @@
     "test:api-coverage": "node --import tsx --test tests/coverage/openapi-coverage.test.ts",
     "lint": "eslint src tests codegen scripts/*.ts",
     "format:check": "prettier --check .",
-    "test:packaging": "node scripts/validate-packaging.mjs"
+    "test:packaging": "node scripts/validate-packaging.mjs",
+    "docs:generate-commands": "node scripts/generate-commands-doc.mjs && prettier --write docs/site/commands/index.md",
+    "docs:dev": "vitepress dev docs/site",
+    "docs:build": "npm run docs:generate-commands && vitepress build docs/site",
+    "docs:preview": "vitepress preview docs/site"
   },
   "dependencies": {
     "commander": "^14.0.0"
@@ -44,6 +48,8 @@
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.40.0",
+    "vitepress": "^1.6.4",
+    "vitepress-plugin-llms": "^1.13.5",
     "yaml": "^2.9.0"
   }
 }
