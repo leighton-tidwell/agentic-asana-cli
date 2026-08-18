@@ -8,3 +8,5 @@ config.json
 .asn/
 *.pem
 *.key
+.claude-proof/
+.skills-proof/
