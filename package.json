@@ -1,0 +1,44 @@
+{
+  "name": "@agentic-asana/asn",
+  "version": "0.1.0",
+  "description": "Agent-first Asana CLI",
+  "license": "MIT",
+  "author": "Leighton Tidwell",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leighton-tidwell/agentic-asana-cli.git"
+  },
+  "homepage": "https://github.com/leighton-tidwell/agentic-asana-cli#readme",
+  "bugs": {
+    "url": "https://github.com/leighton-tidwell/agentic-asana-cli/issues"
+  },
+  "type": "module",
+  "bin": {
+    "asn": "dist/main.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --import tsx --test tests/**/*.test.ts",
+    "lint": "eslint src tests",
+    "format:check": "prettier --check .",
+    "test:packaging": "node scripts/validate-packaging.mjs"
+  },
+  "dependencies": {
+    "commander": "^14.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.33.0",
+    "@types/node": "^24.3.0",
+    "eslint": "^9.33.0",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.40.0"
+  }
+}

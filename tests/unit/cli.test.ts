@@ -1,0 +1,111 @@
+import assert from 'node:assert/strict';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { test } from 'node:test';
+
+const root = resolve(import.meta.dirname, '../..');
+
+test('auth login stores a PAT without echoing it', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'asn-auth-'));
+  const config = join(directory, 'config.json');
+  const token = 'pat-sensitive-login-value';
+  try {
+    const run = spawnSync(
+      process.execPath,
+      [
+        '--import',
+        'tsx',
+        'src/main.ts',
+        'auth',
+        'login',
+        '--token',
+        token,
+        '--config',
+        config,
+      ],
+      { cwd: root, encoding: 'utf8' },
+    );
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(`${run.stdout}${run.stderr}`.includes(token), false);
+    const stored = JSON.parse(await readFile(config, 'utf8')) as {
+      token: string;
+    };
+    assert.equal(stored.token, token);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('help works with a PAT and advertises workspace listing', () => {
+  const run = spawnSync(
+    process.execPath,
+    ['--import', 'tsx', 'src/main.ts', '--help'],
+    {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, ASANA_PAT: 'safe-test-token' },
+    },
+  );
+  assert.equal(run.status, 0, run.stderr);
+  assert.match(run.stdout, /workspace/);
+  assert.equal(run.stdout.includes('safe-test-token'), false);
+});
+
+test('workspace dry-run prints a redacted request and exits zero', () => {
+  const token = 'pat-sensitive-dry-run';
+  const run = spawnSync(
+    process.execPath,
+    [
+      '--import',
+      'tsx',
+      'src/main.ts',
+      'workspace',
+      'list',
+      '--dry-run',
+      '--opt-fields',
+      'name',
+    ],
+    {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, ASANA_PAT: token },
+    },
+  );
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(`${run.stdout}${run.stderr}`.includes(token), false);
+  assert.deepEqual(JSON.parse(run.stdout), {
+    method: 'GET',
+    url: 'https://app.asana.com/api/1.0/workspaces?opt_fields=name',
+    headers: { Authorization: 'Bearer ***' },
+  });
+});
+
+test('missing PAT writes the stable error envelope to stderr', () => {
+  const environment = { ...process.env };
+  delete environment.ASANA_PAT;
+  const run = spawnSync(
+    process.execPath,
+    [
+      '--import',
+      'tsx',
+      'src/main.ts',
+      'workspace',
+      'list',
+      '--dry-run',
+      '--config',
+      join(tmpdir(), 'asn-missing-config-for-test.json'),
+    ],
+    { cwd: root, encoding: 'utf8', env: environment },
+  );
+  assert.equal(run.status, 3);
+  assert.equal(run.stdout, '');
+  assert.deepEqual(JSON.parse(run.stderr), {
+    error: {
+      code: 'AUTH',
+      message: 'no Personal Access Token configured',
+      details: null,
+    },
+  });
+});

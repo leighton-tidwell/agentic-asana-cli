@@ -1,0 +1,23 @@
+{
+  "name": "agentic-asana",
+  "owner": {
+    "name": "Leighton Tidwell",
+    "url": "https://github.com/leighton-tidwell"
+  },
+  "metadata": {
+    "description": "Claude Code tools for the agentic Asana CLI"
+  },
+  "plugins": [
+    {
+      "name": "asana-cli",
+      "source": "./",
+      "description": "Drive Asana safely through the agent-first asn CLI.",
+      "version": "0.1.0",
+      "author": { "name": "Leighton Tidwell" },
+      "homepage": "https://github.com/leighton-tidwell/agentic-asana-cli#readme",
+      "repository": "https://github.com/leighton-tidwell/agentic-asana-cli",
+      "license": "MIT",
+      "keywords": ["asana", "cli", "agents"]
+    }
+  ]
+}

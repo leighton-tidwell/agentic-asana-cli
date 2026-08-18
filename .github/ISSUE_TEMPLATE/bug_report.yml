@@ -1,0 +1,32 @@
+name: Bug report
+description: Report reproducible incorrect behavior
+title: 'bug: '
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: 'Never paste an Asana PAT or unredacted request headers.'
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction (with synthetic/redacted values)
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: asn and Node.js versions
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Redacted output and exit code
+    validations:
+      required: true

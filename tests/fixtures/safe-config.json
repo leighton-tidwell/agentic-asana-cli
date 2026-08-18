@@ -1,0 +1,4 @@
+{
+  "token": "fixture-not-a-real-token",
+  "workspaces": [{ "gid": "100", "readOnly": true }]
+}

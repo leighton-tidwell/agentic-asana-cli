@@ -1,0 +1,13 @@
+{
+  "name": "asana-cli",
+  "version": "0.1.0",
+  "description": "Drive Asana safely through the agent-first asn CLI.",
+  "author": {
+    "name": "Leighton Tidwell",
+    "url": "https://github.com/leighton-tidwell"
+  },
+  "homepage": "https://github.com/leighton-tidwell/agentic-asana-cli#readme",
+  "repository": "https://github.com/leighton-tidwell/agentic-asana-cli",
+  "license": "MIT",
+  "keywords": ["asana", "cli", "agents", "productivity"]
+}
