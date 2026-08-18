@@ -90,7 +90,31 @@ npm run docs:preview
 
 ## Deploying
 
-The build output in `docs/site/.vitepress/dist/` is a plain static site. It can be deployed
-as-is to GitHub Pages (serve that directory from a Pages workflow) or to Vercel (set the
-build command to `npm run docs:build` and the output directory to
-`docs/site/.vitepress/dist`).
+The site is deployed automatically to GitHub Pages via the `Deploy Docs` workflow
+(`.github/workflows/docs-deploy.yml`). The workflow triggers on pushes to `main` that
+touch `docs/`, the workflow file itself, `package.json`, `package-lock.json`, the commands
+generator script, or the command manifest — and on manual dispatch from the Actions tab.
+
+**Pipeline steps:**
+1. `npm ci` — install dependencies.
+2. `npm run docs:build` — builds the VitePress site (including llms.txt generation and
+   sitemap.xml).
+3. Verifies `llms.txt` and `sitemap.xml` exist in the build output.
+4. Uploads `docs/site/.vitepress/dist/` as a GitHub Pages artifact.
+5. Deploys the artifact to the GitHub Pages environment.
+
+**Live site URL:** https://leighton-tidwell.github.io/agentic-asana-cli/
+
+The VitePress `base` path (`/agentic-asana-cli/`) and `sitemap.hostname` in
+`docs/site/.vitepress/config.mts` are set to match this URL so all links, sitemap entries,
+and llms.txt URLs are correct on the hosted domain.
+
+### Rollback plan
+
+1. **Re-deploy a previous commit:** Actions tab → "Deploy Docs" → "Run workflow" →
+   choose the commit SHA of the last known-good state. The workflow will rebuild and
+   redeploy from that commit.
+2. **Revert the triggering commit:** `git revert <sha> && git push` — the next automatic
+   run will redeploy the prior state.
+3. **Emergency takedown:** repo Settings → Pages → disable Pages, or delete the deployed
+   environment from the workflow run.
