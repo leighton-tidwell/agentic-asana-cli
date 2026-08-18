@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { Readable } from 'node:stream';
 import { test } from 'node:test';
 
 const transportModule = await import('../../src/transport.js').catch(
@@ -95,4 +96,34 @@ test('HTTP failures map to documented structured errors', async () => {
       },
     );
   }
+});
+
+test('transport sends multipart Readable bodies without JSON encoding', async () => {
+  const stream = Readable.from(['multipart-bytes']);
+  let captured: {
+    body?: unknown;
+    duplex?: string;
+    headers?: Record<string, string>;
+  } = {};
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    fetch: async (_input: unknown, init: unknown) => {
+      captured = init;
+      return Response.json({ data: { gid: 'attachment-1' } });
+    },
+  });
+
+  await client.request({
+    method: 'POST',
+    path: '/attachments',
+    headers: { 'Content-Type': 'multipart/form-data; boundary=test' },
+    body: stream,
+  });
+
+  assert.equal(captured.body, stream);
+  assert.equal(captured.duplex, 'half');
+  assert.equal(
+    captured.headers['Content-Type'],
+    'multipart/form-data; boundary=test',
+  );
 });

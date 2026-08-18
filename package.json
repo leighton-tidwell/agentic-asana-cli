@@ -17,15 +17,19 @@
     "asn": "dist/main.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "gen"
   ],
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "codegen": "tsx codegen/generate.ts",
+    "spec:update": "tsx scripts/sync-spec.ts",
     "test": "node --import tsx --test tests/**/*.test.ts",
-    "lint": "eslint src tests",
+    "test:api-coverage": "node --import tsx --test tests/coverage/openapi-coverage.test.ts",
+    "lint": "eslint src tests codegen scripts/*.ts",
     "format:check": "prettier --check .",
     "test:packaging": "node scripts/validate-packaging.mjs"
   },
@@ -39,6 +43,7 @@
     "prettier": "^3.6.2",
     "tsx": "^4.20.5",
     "typescript": "^5.9.2",
-    "typescript-eslint": "^8.40.0"
+    "typescript-eslint": "^8.40.0",
+    "yaml": "^2.9.0"
   }
 }

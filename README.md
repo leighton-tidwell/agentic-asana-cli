@@ -47,15 +47,16 @@ A mutating request aimed at a read-only workspace is rejected before the network
 Discover commands instead of guessing flags:
 
 ```bash
-asn schema
-asn schema tasks create
-asn tasks list --project 1234567890123456 --all \
-  --opt-fields name,assignee.name,completed
-asn --dry-run tasks create --workspace 1234567890123456 \
-  --field name='Agent-created task'
+asn schema > asana-command-catalog.json
+asn tasks get-tasks-for-project 1234567890123456 \
+  --opt-fields name assignee.name completed
+asn --dry-run --workspace 1234567890123456 tasks create-task \
+  --field workspace=1234567890123456 --field name='Agent-created task'
 asn attachments create --parent 1234567890123456 --file ./report.pdf
-asn attachments list --parent 1234567890123456
+asn attachments get-attachments-for-object --parent 1234567890123456
 ```
+
+The pinned OpenAPI manifest generates 249 invocable commands named `asn <resource> <kebab-operation-id>`. Mutations accept repeatable `--field key=value` inputs or a complete body through `--body-json '<json>'`, `--body-json @file.json`, or `--body-json -` for stdin.
 
 Successful output is JSON by default. Errors are JSON on stderr with stable exit codes: `2` usage, `3` authentication, `4` read-only/forbidden, `5` not found, `6` rate-limited, `7` server, `8` network, and `9` request conflict.
 

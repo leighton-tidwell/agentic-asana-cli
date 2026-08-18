@@ -1,3 +1,4 @@
+import { Readable } from 'node:stream';
 import { CliError } from './errors.js';
 import { enforceReadOnly, type WorkspacePolicy } from './guard.js';
 
@@ -15,6 +16,8 @@ export interface RequestSpec {
   method: string;
   path: string;
   workspaceGid?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
 }
 
 interface Page<T> {
@@ -36,14 +39,39 @@ export class AsanaClient {
         new Promise((resolve) => setTimeout(resolve, milliseconds)));
   }
 
-  async request(spec: RequestSpec): Promise<unknown> {
+  assertAllowed(spec: RequestSpec): void {
     enforceReadOnly(spec.method, spec.workspaceGid, this.workspaces);
+  }
+
+  async request(spec: RequestSpec): Promise<unknown> {
+    this.assertAllowed(spec);
+    const streaming = spec.body instanceof Readable;
+    const init: RequestInit & { duplex?: 'half' } = {
+      method: spec.method,
+      headers: {
+        Authorization: `Bearer ${this.options.token}`,
+        ...(spec.body !== undefined &&
+        !streaming &&
+        !(spec.body instanceof FormData)
+          ? { 'Content-Type': 'application/json' }
+          : {}),
+        ...spec.headers,
+      },
+      ...(spec.body !== undefined
+        ? {
+            body:
+              streaming ||
+              spec.body instanceof FormData ||
+              typeof spec.body === 'string'
+                ? (spec.body as BodyInit)
+                : JSON.stringify(spec.body),
+          }
+        : {}),
+      ...(streaming ? { duplex: 'half' as const } : {}),
+    };
     const response = await this.fetchWithRetry(
       `https://app.asana.com/api/1.0${spec.path}`,
-      {
-        method: spec.method,
-        headers: { Authorization: `Bearer ${this.options.token}` },
-      },
+      init,
     );
     return response.json();
   }

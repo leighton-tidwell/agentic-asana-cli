@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known synthetic webhook secret in Asana's official OpenAPI example"
+regexes = ['''b537207f20cbfa02357cf448134da559e8bd39d61597dcd5631b8012eae53e81''']

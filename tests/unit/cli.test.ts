@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, symlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -108,4 +108,21 @@ test('missing PAT writes the stable error envelope to stderr', () => {
       details: null,
     },
   });
+});
+
+test('CLI entrypoint executes when invoked through an npm-style symlink', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'asn-bin-link-'));
+  const bin = join(directory, 'asn');
+  await symlink(resolve(root, 'src/main.ts'), bin);
+  try {
+    const run = spawnSync(
+      process.execPath,
+      ['--import', 'tsx', bin, '--version'],
+      { cwd: root, encoding: 'utf8' },
+    );
+    assert.equal(run.status, 0, run.stderr);
+    assert.equal(run.stdout.trim(), '0.1.0');
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

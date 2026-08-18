@@ -1,6 +1,7 @@
 #!/usr/bin/env node
+import { realpathSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { Command } from 'commander';
 import {
@@ -14,6 +15,9 @@ import { AsanaClient } from './transport.js';
 import { CliError, errorEnvelope } from './errors.js';
 import { renderOutput, type OutputFormat } from './output.js';
 import { listWorkspaces } from './workspaces.js';
+import { registerGeneratedCommands } from './dispatch.js';
+import { loadManifest } from './manifest.js';
+import { registerAttachmentCommands } from './attachments.js';
 
 export function createProgram(): Command {
   const program = new Command()
@@ -25,7 +29,23 @@ export function createProgram(): Command {
     .option('--output <format>', 'json, jsonl, or table', 'json')
     .option('--dry-run', 'print the redacted request without sending')
     .option('--opt-fields <fields>', 'comma-separated optional fields')
-    .option('--verbose', 'write redacted request diagnostics to stderr');
+    .option('--workspace <gid>', 'target workspace gid for guard resolution')
+    .option('--json-help', 'emit the machine-readable command catalog')
+    .option('--verbose', 'write redacted request diagnostics to stderr')
+    .action(() => {
+      if (program.opts<{ jsonHelp?: boolean }>().jsonHelp) {
+        process.stdout.write(`${JSON.stringify(loadManifest())}\n`);
+      } else {
+        program.outputHelp();
+      }
+    });
+
+  program
+    .command('schema')
+    .description('Emit the machine-readable command catalog')
+    .action(() => {
+      process.stdout.write(`${JSON.stringify(loadManifest())}\n`);
+    });
 
   const auth = program.command('auth').description('Manage authentication');
   auth
@@ -101,6 +121,8 @@ export function createProgram(): Command {
       },
     );
 
+  registerGeneratedCommands(program, loadManifest());
+  registerAttachmentCommands(program);
   return program;
 }
 
@@ -132,7 +154,7 @@ export async function run(argv = process.argv): Promise<number> {
 
 if (
   process.argv[1] &&
-  import.meta.url === pathToFileURL(process.argv[1]).href
+  realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)
 ) {
   process.exitCode = await run();
 }
