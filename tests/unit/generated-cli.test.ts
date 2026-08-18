@@ -142,6 +142,64 @@ test('generated mutation maps repeated fields to an Asana JSON body', () => {
   });
 });
 
+test('--field with a 16-digit GID value serializes as a JSON string', () => {
+  const run = spawnSync(
+    process.execPath,
+    [
+      '--import',
+      'tsx',
+      'src/main.ts',
+      '--dry-run',
+      '--config',
+      join(tmpdir(), 'asn-generated-cli-no-config.json'),
+      'tasks',
+      'create-task',
+      '--field',
+      'workspace=1114805858349869',
+      '--field',
+      'name=probe',
+    ],
+    {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, ASANA_PAT: 'safe-generated-test-token' },
+    },
+  );
+
+  assert.equal(run.status, 0, run.stderr);
+  assert.deepEqual(JSON.parse(run.stdout).body, {
+    data: { workspace: '1114805858349869', name: 'probe' },
+  });
+});
+
+test('--field with a comma-separated GID list serializes as a JSON array of strings', () => {
+  const run = spawnSync(
+    process.execPath,
+    [
+      '--import',
+      'tsx',
+      'src/main.ts',
+      '--dry-run',
+      '--config',
+      join(tmpdir(), 'asn-generated-cli-no-config.json'),
+      'tasks',
+      'create-task',
+      '--field',
+      'projects=1212534488934172,1212534488934173',
+    ],
+    {
+      cwd: root,
+      encoding: 'utf8',
+      env: { ...process.env, ASANA_PAT: 'safe-generated-test-token' },
+    },
+  );
+
+  assert.equal(run.status, 0, run.stderr);
+  assert.deepEqual(JSON.parse(run.stdout).body, {
+    data: { projects: ['1212534488934172', '1212534488934173'] },
+  });
+});
+
 test('generated mutation reads --body-json from an @file', async () => {
   const directory = await mkdtemp(join(root, '.asn-body-json-'));
   const bodyPath = join(directory, 'body.json');

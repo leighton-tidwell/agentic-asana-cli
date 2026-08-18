@@ -62,6 +62,8 @@ asn attachments get-attachments-for-object --parent 1234567890123456
 
 The pinned OpenAPI manifest generates 249 invocable commands named `asn <resource> <kebab-operation-id>`. Generated API parameters keep their spec-derived names and belong after the operation (for example, `asn webhooks get-webhooks --workspace <gid>` and `asn tasks get-task <gid> --opt-fields name`). The distinct program-level `--guard-workspace <gid>` flag is only a read-only guard assertion; it is not sent as an API query parameter. Mutations accept repeatable `--field key=value` inputs or a complete body through `--body-json '<json>'`, `--body-json @file.json`, or `--body-json -` for stdin.
 
+`--field` values are JSON-parsed with one exception: an all-digit value (an Asana GID) always stays a string, since Asana rejects numeric GIDs. A comma-separated value with no other valid JSON interpretation becomes an array, with each element GID-coerced the same way — for example `--field projects=1212534488934172,1212534488934173` sends `"projects": ["1212534488934172", "1212534488934173"]`. For any other structured or precise value, use `--body-json`.
+
 Successful output is JSON by default. Errors are JSON on stderr with stable exit codes: `2` usage, `3` authentication, `4` read-only/forbidden, `5` not found, `6` rate-limited, `7` server, `8` network, and `9` request conflict.
 
 ## Claude Code plugin

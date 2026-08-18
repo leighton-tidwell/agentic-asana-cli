@@ -35,10 +35,31 @@ function scalar(value: unknown): string {
   return String(value);
 }
 
+function coerceToken(token: string): unknown {
+  // Asana GIDs are always strings; an all-digit token that happens to be
+  // valid JSON must not be coerced to a number.
+  if (/^\d+$/.test(token)) return token;
+  try {
+    return JSON.parse(token) as unknown;
+  } catch {
+    return token;
+  }
+}
+
 function fieldValue(value: string): unknown {
   try {
-    return JSON.parse(value) as unknown;
+    const parsed = JSON.parse(value) as unknown;
+    if (typeof parsed === 'number' && /^\d+$/.test(value)) {
+      // A 16-digit GID is valid JSON but Asana rejects numeric GIDs.
+      return value;
+    }
+    return parsed;
   } catch {
+    // Not a single JSON value: allow a comma-separated list to become an
+    // array of individually-coerced (GID-safe) scalars.
+    if (value.includes(',')) {
+      return value.split(',').map((token) => coerceToken(token));
+    }
     return value;
   }
 }
