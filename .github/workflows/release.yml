@@ -26,13 +26,13 @@ jobs:
       - run: npm run test:packaging
       - name: Verify tag matches package version
         run: |
-          test "$GITHUB_REF_NAME" = "v$(node -p 'require(\"./package.json\").version')"
+          test "$GITHUB_REF_NAME" = "v$(node -p "require('./package.json').version")"
       - name: Build installable npm artifact
         run: mkdir -p release && npm pack --pack-destination release
       - name: Probe packed CLI entrypoint
         run: |
           npm install --prefix "$RUNNER_TEMP/asn-install" --global release/*.tgz
-          test "$("$RUNNER_TEMP/asn-install/bin/asn" --version)" = "$(node -p 'require(\"./package.json\").version')"
+          test "$("$RUNNER_TEMP/asn-install/bin/asn" --version)" = "$(node -p "require('./package.json').version")"
       - name: Normalize artifact name
         run: mv release/*.tgz release/agentic-asana-asn.tgz
       - uses: actions/attest-build-provenance@8beda2b7ed98355c0e97c0a63bec38ae472e66c4 # v2
