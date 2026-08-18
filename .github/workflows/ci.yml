@@ -30,7 +30,12 @@ jobs:
       - run: npm run build
       - run: npm run test:api-coverage
       - run: npm run test:packaging
-      - run: npm pack --dry-run
+      - name: Probe packed CLI entrypoint
+        run: |
+          mkdir -p "$RUNNER_TEMP/asn-pack"
+          npm pack --pack-destination "$RUNNER_TEMP/asn-pack"
+          npm install --prefix "$RUNNER_TEMP/asn-install" --global "$RUNNER_TEMP/asn-pack/"*.tgz
+          test "$("$RUNNER_TEMP/asn-install/bin/asn" --version)" = "$(node -p 'require(\"./package.json\").version')"
 
   secret-scan:
     name: Gitleaks
