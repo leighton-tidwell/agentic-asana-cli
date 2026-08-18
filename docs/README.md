@@ -23,6 +23,26 @@ CLI docs set), Docusaurus (React/MDX-first, more config than needed here), MkDoc
 (would add a Python toolchain to a Node-only repo), Nextra (Next.js-first, heavier runtime
 than a static docs site needs).
 
+## LLM-friendly output (llms.txt)
+
+The build uses [`vitepress-plugin-llms`](https://github.com/okineadev/vitepress-plugin-llms),
+wired into `docs/site/.vitepress/config.mts`, to automatically generate LLM-readable output
+from the same markdown source on every `docs:build` — nothing here is hand-maintained:
+
+- Every page gets a plain-markdown variant at `/<page>.md` in the build output (e.g.
+  `usage/index.md` → `/usage.md`), reflecting that page's current content.
+- A root `/llms.txt` acts as a progressive-disclosure router: site name, one-line summary,
+  then a linked index of every page's `.md` variant with a one-line description pulled from
+  each page's frontmatter `description` (or first paragraph).
+- A root `/llms-full.txt` bundles every page's content into one file for full-context loads.
+
+`excludeIndexPage: false` is set because `docs/site/index.md` is a real landing page (not an
+empty stub), so it gets a variant and a `llms.txt` entry like every other page.
+
+An automated check (`tests/docs/llms-txt.test.ts`, run as part of `npm test`) runs
+`docs:build` and asserts: every markdown source page under `docs/site` has a corresponding
+`.md` output, and the root `llms.txt` links to all of them.
+
 ## Layout
 
 ```

@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitepress';
+import llmstxt from 'vitepress-plugin-llms';
 
 // Site URL used for sitemap generation and canonical/OpenGraph tags.
 const siteUrl = 'https://leighton-tidwell.github.io/agentic-asana-cli/';
@@ -12,6 +13,17 @@ export default defineConfig({
   base: '/agentic-asana-cli/',
 
   cleanUrls: true,
+
+  vite: {
+    plugins: [
+      // Auto-generates a per-page LLM-readable markdown variant (<page>.md) plus a root
+      // llms.txt router linking every page, regenerated from the markdown source on every
+      // `docs:build` — never hand-maintained.
+      // excludeIndexPage: false because our index.md is real landing-page content (not
+      // an empty stub), so it should get an LLM-readable variant and a llms.txt entry too.
+      llmstxt({ excludeIndexPage: false }),
+    ],
+  },
 
   // Emits sitemap.xml into the build output automatically.
   sitemap: {
