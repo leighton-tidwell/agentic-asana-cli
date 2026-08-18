@@ -16,12 +16,46 @@ import { defaultWorkspaceCachePath, listWorkspaces } from './workspaces.js';
 import { registerGeneratedCommands } from './dispatch.js';
 import { loadManifest } from './manifest.js';
 import { registerAttachmentCommands } from './attachments.js';
+import {
+  defaultUpdateCachePath,
+  maybeNotifyUpdate,
+  readUpdateCache,
+  writeUpdateCache,
+} from './update-check.js';
+
+const CLI_VERSION = '0.1.4';
+
+async function fetchLatestVersion(): Promise<string> {
+  const response = await fetch(
+    'https://api.github.com/repos/leighton-tidwell/agentic-asana-cli/releases/latest',
+  );
+  if (!response.ok) throw new Error(`update check failed: ${response.status}`);
+  const body = (await response.json()) as { tag_name?: string };
+  const tag = body.tag_name ?? '';
+  return tag.startsWith('v') ? tag.slice(1) : tag;
+}
+
+async function checkForUpdate(argv: string[]): Promise<void> {
+  await maybeNotifyUpdate({
+    argv,
+    env: process.env,
+    isTTY: process.stderr.isTTY ?? false,
+    cachePath: defaultUpdateCachePath(),
+    now: Date.now,
+    currentVersion: CLI_VERSION,
+    cliName: 'asn',
+    fetchLatest: fetchLatestVersion,
+    readCache: readUpdateCache,
+    writeCache: writeUpdateCache,
+    write: (text: string) => process.stderr.write(text),
+  });
+}
 
 export function createProgram(): Command {
   const program = new Command()
     .name('asn')
     .description('Agent-first Asana CLI')
-    .version('0.1.4')
+    .version(CLI_VERSION)
     .option('--token <pat>', 'PAT fallback (prefer ASANA_PAT)')
     .option('--config <path>', 'config file path', defaultConfigPath())
     .option('--output <format>', 'json, jsonl, or table', 'json')
@@ -39,6 +73,7 @@ export function createProgram(): Command {
       'explicitly allow a webhook target outside webhookTargetAllowlist',
     )
     .option('--json-help', 'emit the machine-readable command catalog')
+    .option('--no-update-check', 'skip the startup update check')
     .action(() => {
       if (program.opts<{ jsonHelp?: boolean }>().jsonHelp) {
         process.stdout.write(`${JSON.stringify(loadManifest())}\n`);
@@ -130,6 +165,7 @@ export function createProgram(): Command {
 }
 
 export async function run(argv = process.argv): Promise<number> {
+  await checkForUpdate(argv.slice(2));
   try {
     await createProgram().parseAsync(argv);
     return 0;
