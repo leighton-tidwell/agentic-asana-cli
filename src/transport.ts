@@ -167,6 +167,39 @@ export class AsanaClient {
         body: spec.body,
       },
     );
+    if (webhook) {
+      this.assertWebhookTargetAllowed(spec);
+    }
+  }
+
+  private assertWebhookTargetAllowed(spec: RequestSpec): void {
+    const target = (spec.body as { data?: { target?: unknown } } | undefined)
+      ?.data?.target;
+    let targetOrigin: string | undefined;
+    try {
+      targetOrigin =
+        typeof target === 'string' ? new URL(target).origin : undefined;
+    } catch {
+      targetOrigin = undefined;
+    }
+    const allowedOrigins = (this.options.webhookTargetAllowlist ?? []).flatMap(
+      (allowed) => {
+        try {
+          return [new URL(allowed).origin];
+        } catch {
+          return [];
+        }
+      },
+    );
+    if (
+      !this.options.allowUnlistedWebhookTarget &&
+      (!targetOrigin || !allowedOrigins.includes(targetOrigin))
+    ) {
+      throw new CliError(
+        'READONLY_BLOCKED',
+        'webhook target origin is not allowlisted; use --allow-unlisted-webhook-target for explicit operator opt-in',
+      );
+    }
   }
 
   async request(spec: RequestSpec): Promise<unknown> {
@@ -221,33 +254,7 @@ export class AsanaClient {
       this.assertAllowed(guardedSpec);
     }
     if (webhook) {
-      const target = (spec.body as { data?: { target?: unknown } } | undefined)
-        ?.data?.target;
-      let targetOrigin: string | undefined;
-      try {
-        targetOrigin =
-          typeof target === 'string' ? new URL(target).origin : undefined;
-      } catch {
-        targetOrigin = undefined;
-      }
-      const allowedOrigins = (
-        this.options.webhookTargetAllowlist ?? []
-      ).flatMap((allowed) => {
-        try {
-          return [new URL(allowed).origin];
-        } catch {
-          return [];
-        }
-      });
-      if (
-        !this.options.allowUnlistedWebhookTarget &&
-        (!targetOrigin || !allowedOrigins.includes(targetOrigin))
-      ) {
-        throw new CliError(
-          'READONLY_BLOCKED',
-          'webhook target origin is not allowlisted; use --allow-unlisted-webhook-target for explicit operator opt-in',
-        );
-      }
+      this.assertWebhookTargetAllowed(spec);
     }
     const streaming = spec.body instanceof Readable;
     const init: RequestInit & { duplex?: 'half' } = {

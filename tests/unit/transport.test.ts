@@ -1182,6 +1182,102 @@ test('webhook creation permits an allowlisted target origin with an all-writable
   assert.equal(calls, 1);
 });
 
+test('dry-run (assertAllowed) blocks an unlisted target with an all-writable config and an explicit allowlist', () => {
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '999999', readOnly: false }],
+    webhookTargetAllowlist: ['https://hooks.example'],
+  });
+
+  assert.throws(
+    () =>
+      client.assertAllowed({
+        method: 'POST',
+        path: '/webhooks',
+        body: {
+          data: {
+            resource: '1201234567890',
+            target: 'https://attacker.example/hook',
+          },
+        },
+      }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+});
+
+test('dry-run (assertAllowed) blocks an unlisted target with an all-writable config and no configured allowlist', () => {
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '999999', readOnly: false }],
+  });
+
+  assert.throws(
+    () =>
+      client.assertAllowed({
+        method: 'POST',
+        path: '/webhooks',
+        body: {
+          data: {
+            resource: '1201234567890',
+            target: 'https://attacker.example/hook',
+          },
+        },
+      }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+});
+
+test('dry-run (assertAllowed) permits an allowlisted target origin with an all-writable config', () => {
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '999999', readOnly: false }],
+    webhookTargetAllowlist: ['https://hooks.example/approved-path'],
+  });
+
+  assert.doesNotThrow(() =>
+    client.assertAllowed({
+      method: 'POST',
+      path: '/webhooks',
+      body: {
+        data: {
+          resource: '1201234567890',
+          target: 'https://hooks.example/callback',
+        },
+      },
+    }),
+  );
+});
+
+test('dry-run (assertAllowed) permits an unlisted target with explicit opt-in and an all-writable config', () => {
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '999999', readOnly: false }],
+    webhookTargetAllowlist: [],
+    allowUnlistedWebhookTarget: true,
+  });
+
+  assert.doesNotThrow(() =>
+    client.assertAllowed({
+      method: 'POST',
+      path: '/webhooks',
+      body: {
+        data: {
+          resource: '1201234567890',
+          target: 'https://attacker.example/hook',
+        },
+      },
+    }),
+  );
+});
+
 test('webhook creation permits an unlisted target with explicit opt-in and an all-writable config', async () => {
   let calls = 0;
   const client = new transportModule.AsanaClient({
