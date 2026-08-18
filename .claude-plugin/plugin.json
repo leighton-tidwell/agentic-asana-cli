@@ -1,6 +1,6 @@
 {
   "name": "asana-cli",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Drive Asana safely through the agent-first asn CLI.",
   "author": {
     "name": "Leighton Tidwell",
