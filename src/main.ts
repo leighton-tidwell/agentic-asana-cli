@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { realpathSync } from 'node:fs';
+import { realpathSync, existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import {
@@ -22,6 +22,11 @@ import {
   readUpdateCache,
   writeUpdateCache,
 } from './update-check.js';
+import {
+  fetchLatestRelease,
+  realExecutablePath,
+  runUpgrade,
+} from './upgrade.js';
 
 const CLI_VERSION = '0.1.4';
 
@@ -88,6 +93,51 @@ export function createProgram(): Command {
     .action(() => {
       process.stdout.write(`${JSON.stringify(loadManifest())}\n`);
     });
+
+  program
+    .command('upgrade')
+    .alias('update')
+    .description('Upgrade this CLI to the latest published version')
+    .option('--check', 'report versions without changing anything')
+    .option('--version <x.y.z>', 'pin a specific target version')
+    .option('--yes', 'install without an interactive confirmation')
+    .action(
+      async (commandOptions: {
+        check?: boolean;
+        version?: string;
+        yes?: boolean;
+      }) => {
+        const argv1 = process.argv[1];
+        const outcome = await runUpgrade(commandOptions, {
+          env: process.env,
+          currentVersion: CLI_VERSION,
+          realPath: realExecutablePath(argv1),
+          fetchLatest: () => fetchLatestRelease(globalThis.fetch),
+          fileExists: (path: string) => existsSync(path),
+          readFile: (path: string) => readFileSync(path, 'utf8'),
+          runner: async (command: string, args: string[]) => {
+            const { spawn } = await import('node:child_process');
+            return new Promise((resolvePromise, rejectPromise) => {
+              const child = spawn(command, args, { stdio: 'pipe' });
+              let stdout = '';
+              let stderr = '';
+              child.stdout.on('data', (chunk: Buffer) => {
+                stdout += chunk.toString();
+              });
+              child.stderr.on('data', (chunk: Buffer) => {
+                stderr += chunk.toString();
+              });
+              child.on('error', rejectPromise);
+              child.on('close', (code) => {
+                resolvePromise({ code: code ?? 1, stdout, stderr });
+              });
+            });
+          },
+        });
+        process.stdout.write(`${outcome.message}\n`);
+        process.exitCode = outcome.exitCode;
+      },
+    );
 
   const auth = program.command('auth').description('Manage authentication');
   auth
