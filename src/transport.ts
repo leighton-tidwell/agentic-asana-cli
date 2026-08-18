@@ -210,6 +210,17 @@ export class AsanaClient {
         path: spec.path,
         body: spec.body,
       });
+    } else if (!webhook && workspaceResolved) {
+      enforceReadOnly(
+        guardedSpec.method,
+        guardedSpec.workspaceGids,
+        this.workspaces,
+        { path: guardedSpec.path, body: guardedSpec.body },
+      );
+    } else if (!webhook) {
+      this.assertAllowed(guardedSpec);
+    }
+    if (webhook) {
       const target = (spec.body as { data?: { target?: unknown } } | undefined)
         ?.data?.target;
       let targetOrigin: string | undefined;
@@ -237,15 +248,6 @@ export class AsanaClient {
           'webhook target origin is not allowlisted; use --allow-unlisted-webhook-target for explicit operator opt-in',
         );
       }
-    } else if (workspaceResolved) {
-      enforceReadOnly(
-        guardedSpec.method,
-        guardedSpec.workspaceGids,
-        this.workspaces,
-        { path: guardedSpec.path, body: guardedSpec.body },
-      );
-    } else {
-      this.assertAllowed(guardedSpec);
     }
     const streaming = spec.body instanceof Readable;
     const init: RequestInit & { duplex?: 'half' } = {

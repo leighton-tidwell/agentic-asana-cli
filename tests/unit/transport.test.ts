@@ -1090,3 +1090,121 @@ test('webhook creation permits an unlisted target with explicit opt-in', async (
   });
   assert.equal(calls, 1);
 });
+
+test('webhook creation blocks an unlisted target with an all-writable config and an explicit allowlist', async () => {
+  let calls = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '999999', readOnly: false }],
+    resolveWorkspace: async () => '999999',
+    webhookTargetAllowlist: ['https://hooks.example'],
+    fetch: async () => {
+      calls += 1;
+      return new Response('{}');
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'POST',
+      path: '/webhooks',
+      body: {
+        data: {
+          resource: '1201234567890',
+          target: 'https://attacker.example/hook',
+        },
+      },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.equal(calls, 0);
+});
+
+test('webhook creation blocks an unlisted target with an all-writable config and no configured allowlist', async () => {
+  let calls = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '999999', readOnly: false }],
+    resolveWorkspace: async () => '999999',
+    fetch: async () => {
+      calls += 1;
+      return new Response('{}');
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'POST',
+      path: '/webhooks',
+      body: {
+        data: {
+          resource: '1201234567890',
+          target: 'https://attacker.example/hook',
+        },
+      },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.equal(calls, 0);
+});
+
+test('webhook creation permits an allowlisted target origin with an all-writable config', async () => {
+  let calls = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '999999', readOnly: false }],
+    resolveWorkspace: async () => '999999',
+    webhookTargetAllowlist: ['https://hooks.example/approved-path'],
+    fetch: async () => {
+      calls += 1;
+      return Response.json({ data: { gid: 'webhook-1' } });
+    },
+  });
+
+  await client.request({
+    method: 'POST',
+    path: '/webhooks',
+    body: {
+      data: {
+        resource: '1201234567890',
+        target: 'https://hooks.example/callback',
+      },
+    },
+  });
+  assert.equal(calls, 1);
+});
+
+test('webhook creation permits an unlisted target with explicit opt-in and an all-writable config', async () => {
+  let calls = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '999999', readOnly: false }],
+    resolveWorkspace: async () => '999999',
+    webhookTargetAllowlist: [],
+    allowUnlistedWebhookTarget: true,
+    fetch: async () => {
+      calls += 1;
+      return Response.json({ data: { gid: 'webhook-1' } });
+    },
+  });
+
+  await client.request({
+    method: 'POST',
+    path: '/webhooks',
+    body: {
+      data: {
+        resource: '1201234567890',
+        target: 'https://operator-approved.example/callback',
+      },
+    },
+  });
+  assert.equal(calls, 1);
+});
