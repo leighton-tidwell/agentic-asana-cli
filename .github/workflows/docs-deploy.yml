@@ -61,10 +61,10 @@ jobs:
           echo "llms.txt and sitemap.xml present in build output"
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@56afc609e7430d281760c9a525f8a9c38c0d8e0e # v3
+        uses: actions/upload-pages-artifact@v3
         with:
           path: docs/site/.vitepress/dist
 
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@d6db90164ac5ed86f2bceaed503966d2c16119d5 # v4
+        uses: actions/deploy-pages@v4
