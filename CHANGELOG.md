@@ -4,6 +4,13 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-18
+
+### Fixed
+
+- **SEC-4 regression (High):** The webhook target-origin allowlist was inert in the default all-writable configuration because the check was nested inside the read-only workspace branch. It is now evaluated unconditionally for every `POST /webhooks` request regardless of workspace configuration. Users on v0.1.2 should upgrade immediately — the advertised webhook safety boundary was a no-op in the default config.
+- **--field GID coercion (Medium):** `--field key=<gid>` no longer coerces 16-digit Asana GIDs to JSON numbers (which Asana rejects). All-digit values now stay as JSON strings. Comma-separated non-JSON values for array-typed fields (e.g. `--field projects=<gid1>,<gid2>`) now serialize as JSON arrays of GID-safe strings. The README's documented `create-task` example now works as written.
+
 ## [0.1.2] - 2026-08-18
 
 ### Fixed

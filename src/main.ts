@@ -21,7 +21,7 @@ export function createProgram(): Command {
   const program = new Command()
     .name('asn')
     .description('Agent-first Asana CLI')
-    .version('0.1.2')
+    .version('0.1.3')
     .option('--token <pat>', 'PAT fallback (prefer ASANA_PAT)')
     .option('--config <path>', 'config file path', defaultConfigPath())
     .option('--output <format>', 'json, jsonl, or table', 'json')
