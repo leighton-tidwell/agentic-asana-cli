@@ -111,6 +111,35 @@ function collectionWorkspaceLookupPaths(
   return groups;
 }
 
+interface ContainerLink {
+  field: string;
+  collection: string;
+}
+
+const CONTAINER_LINKS: Record<string, ContainerLink[]> = {
+  sections: [{ field: 'project', collection: 'projects' }],
+  project_briefs: [{ field: 'project', collection: 'projects' }],
+  task_templates: [{ field: 'project', collection: 'projects' }],
+  project_portfolio_settings: [
+    { field: 'project', collection: 'projects' },
+    { field: 'portfolio', collection: 'portfolios' },
+  ],
+  stories: [
+    { field: 'task', collection: 'tasks' },
+    { field: 'project', collection: 'projects' },
+  ],
+  time_tracking_entries: [{ field: 'task', collection: 'tasks' }],
+  goal_relationships: [{ field: 'supported_goal', collection: 'goals' }],
+  teams: [{ field: 'organization', collection: 'workspaces' }],
+  project_templates: [{ field: 'team', collection: 'teams' }],
+  rates: [{ field: 'resource', collection: 'tasks' }],
+};
+
+function containerLinksFor(path: string): ContainerLink[] {
+  const segment = path.split('?')[0]?.split('/').filter(Boolean)[0] ?? '';
+  return CONTAINER_LINKS[segment] ?? [];
+}
+
 export class AsanaClient {
   private readonly fetchFn: typeof globalThis.fetch;
   private readonly workspaces: WorkspacePolicy[];
@@ -297,12 +326,25 @@ export class AsanaClient {
     return undefined;
   }
 
-  private resolveWorkspace(path: string): Promise<string | undefined> {
+  private resolveWorkspace(
+    path: string,
+    depth = 0,
+  ): Promise<string | undefined> {
     const cached = this.workspaceCache.get(path);
     if (cached) return cached;
+    if (depth >= 4) {
+      const resolved = Promise.resolve<string | undefined>(undefined);
+      this.workspaceCache.set(path, resolved);
+      return resolved;
+    }
+    const links = containerLinksFor(path);
     const optFields = path.startsWith('/attachments/')
       ? 'parent.gid,parent.resource_type'
-      : 'workspace.gid,parent.gid,parent.resource_type';
+      : [
+          'workspace.gid',
+          'parent.gid,parent.resource_type',
+          ...links.map((link) => `${link.field}.gid`),
+        ].join(',');
     const resolution = this.fetchWithRetry(
       `https://app.asana.com/api/1.0${path}?opt_fields=${optFields}`,
       {
@@ -319,7 +361,7 @@ export class AsanaClient {
               resource_type?: string;
               workspace?: string | { gid?: string };
             };
-          };
+          } & Record<string, { gid?: string } | string | undefined>;
         };
         if (path.startsWith('/workspaces/') && payload.data?.gid) {
           return payload.data.gid;
@@ -333,7 +375,21 @@ export class AsanaClient {
           const collection = `${parent.resource_type.replace(/y$/, 'ie')}s`;
           return this.resolveWorkspace(
             `/${collection}/${encodeURIComponent(parent.gid)}`,
+            depth + 1,
           );
+        }
+        for (const link of links) {
+          const value = payload.data?.[link.field];
+          const gid =
+            typeof value === 'string'
+              ? value
+              : (value as { gid?: string } | undefined)?.gid;
+          if (gid) {
+            return this.resolveWorkspace(
+              `/${link.collection}/${encodeURIComponent(gid)}`,
+              depth + 1,
+            );
+          }
         }
         return undefined;
       })

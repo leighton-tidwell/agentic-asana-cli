@@ -103,12 +103,15 @@ asn tasks create-task --field workspace=1234567890123456 --field name='Should be
 ```
 
 `asn` resolves the _owning_ workspace for resource-addressed mutations (e.g. updating a task by
-gid) by looking the resource up in Asana first, and caches that resolution for the run. For
-one-segment collection-create endpoints (creating a task, project, etc.), every referenced
-container — scalar, object-shaped (`{"gid": "..."}`), or string/array of gids — is resolved
-before the request is sent, including polymorphic `parent`/`target` fields, which are checked
-against each of their plausible Asana container types. Any reference that can't be resolved
-fails closed with `READONLY_UNRESOLVED` (exit `4`) rather than allowing the request through.
+gid) by looking the resource up in Asana first, and caches that resolution for the run. When a
+resource doesn't directly expose a workspace, the resolver also follows that resource's declared
+container link — a section's `project`, a story's `task`, a team's `organization`, and similar —
+recursing up to a bounded number of hops until a workspace is found. For one-segment collection-create
+endpoints (creating a task, project, etc.), every referenced container — scalar, object-shaped
+(`{"gid": "..."}`), or string/array of gids — is resolved before the request is sent, including
+polymorphic `parent`/`target` fields, which are checked against each of their plausible Asana
+container types. Any reference that can't be resolved fails closed with `READONLY_UNRESOLVED`
+(exit `4`) rather than allowing the request through.
 
 A body `workspace` field is confirmed against Asana before it can authorize a create. The
 global `--guard-workspace <gid>` flag and an unverified body `workspace` value are both treated

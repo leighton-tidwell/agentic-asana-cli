@@ -4,6 +4,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Section (and 7 other resource-class) mutations unresolvable under read-only protection:** `asn sections update-section`, `delete-section`, and `add-task-for-section` — plus mutations on `stories`, `teams`, `project_briefs`, `task_templates`, `project_portfolio_settings`, `goal_relationships`, `time_tracking_entries`, and `rates` — failed closed with `READONLY_UNRESOLVED` (exit 4) even when the target resource lived in a writable workspace, because the resolver only requested `workspace`/`parent` fields those resources don't expose. `AsanaClient.resolveWorkspace()` now follows each resource's declared container link (a section's `project`, a story's `task`, a team's `organization`, etc.) up to a bounded number of hops before giving up; fail-closed behavior for genuinely unresolvable resources and read-only-blocked mutations is unchanged. Note: `sections insert-section-for-project` was listed in the originating report but was never affected — its lookup path is `/projects/{gid}`, which already resolved.
+
 ## [0.1.4] - 2026-08-18
 
 ### Fixed
