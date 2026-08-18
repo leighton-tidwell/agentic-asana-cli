@@ -38,9 +38,22 @@ function isWebhookCreate(spec: RequestSpec): boolean {
   );
 }
 
+function referencedGids(value: unknown, allowArray = false): string[] {
+  const values = allowArray && Array.isArray(value) ? value : [value];
+  return values.flatMap((item) => {
+    const gid =
+      item && typeof item === 'object'
+        ? (item as Record<string, unknown>).gid
+        : item;
+    return typeof gid === 'string' || typeof gid === 'number'
+      ? [String(gid)]
+      : [];
+  });
+}
+
 function collectionWorkspaceLookupPaths(
   spec: RequestSpec,
-): string[] | undefined {
+): string[][] | undefined {
   const segments = spec.path.split('?')[0]?.split('/').filter(Boolean) ?? [];
   if (
     spec.method.toUpperCase() !== 'POST' ||
@@ -52,32 +65,50 @@ function collectionWorkspaceLookupPaths(
   const data = (spec.body as { data?: Record<string, unknown> } | undefined)
     ?.data;
   if (!data || typeof data !== 'object') return [];
-  const paths: string[] = [];
+  const groups: string[][] = [];
+  const addReferences = (
+    value: unknown,
+    collections: readonly string[],
+    allowArray = false,
+  ): void => {
+    for (const gid of referencedGids(value, allowArray)) {
+      groups.push(
+        collections.map(
+          (collection) => `/${collection}/${encodeURIComponent(gid)}`,
+        ),
+      );
+    }
+  };
+
   for (const [field, collection] of [
     ['project', 'projects'],
     ['team', 'teams'],
     ['portfolio', 'portfolios'],
-    ['parent', 'tasks'],
-    ['resource', 'tasks'],
     ['goal', 'goals'],
     ['task', 'tasks'],
+    ['organization', 'workspaces'],
+    ['workspace', 'workspaces'],
   ] as const) {
-    const gid = data[field];
-    if (typeof gid === 'string' || typeof gid === 'number') {
-      paths.push(`/${collection}/${encodeURIComponent(String(gid))}`);
-    }
+    addReferences(data[field], [collection]);
   }
-  if (Array.isArray(data.projects)) {
-    for (const gid of data.projects) {
-      if (typeof gid === 'string' || typeof gid === 'number') {
-        paths.push(`/projects/${encodeURIComponent(String(gid))}`);
-      }
-    }
-  }
-  const bodyWorkspace = data.workspace;
-  return paths.length > 0 || bodyWorkspace === undefined
-    ? paths.filter((path, index) => paths.indexOf(path) === index)
-    : undefined;
+  addReferences(data.target, ['projects', 'portfolios', 'tasks']);
+
+  const root = segments[0] ?? '';
+  const projectParentCreates = new Set([
+    'allocations',
+    'budgets',
+    'rates',
+    'status_updates',
+  ]);
+  const parentCollections = projectParentCreates.has(root)
+    ? ['projects']
+    : root === 'memberships'
+      ? ['projects', 'goals', 'portfolios']
+      : ['projects', 'tasks', 'goals', 'portfolios'];
+  addReferences(data.parent, parentCollections);
+  if (root !== 'rates') addReferences(data.resource, ['tasks']);
+  addReferences(data.projects, ['projects'], true);
+  return groups;
 }
 
 export class AsanaClient {
@@ -98,9 +129,12 @@ export class AsanaClient {
         new Promise((resolve) => setTimeout(resolve, milliseconds)));
   }
 
-  private workspaceLookupPaths(spec: RequestSpec): string[] | undefined {
-    if (spec.workspaceLookupPath) return [spec.workspaceLookupPath];
-    return spec.workspaceLookupPaths ?? collectionWorkspaceLookupPaths(spec);
+  private workspaceLookupPaths(spec: RequestSpec): string[][] | undefined {
+    if (spec.workspaceLookupPath) return [[spec.workspaceLookupPath]];
+    if (spec.workspaceLookupPaths) {
+      return spec.workspaceLookupPaths.map((path) => [path]);
+    }
+    return collectionWorkspaceLookupPaths(spec);
   }
 
   private requiresWorkspaceResolution(spec: RequestSpec): boolean {
@@ -143,9 +177,9 @@ export class AsanaClient {
       if (asserted.length > 0) {
         enforceReadOnly(spec.method, asserted, this.workspaces);
       }
-      const lookupPaths = this.workspaceLookupPaths(spec) ?? [];
+      const lookupGroups = this.workspaceLookupPaths(spec) ?? [];
       const resolved = await Promise.all(
-        lookupPaths.map((path) => this.resolveWorkspace(path)),
+        lookupGroups.map((paths) => this.resolveFirstWorkspace(paths)),
       );
       guardedSpec = {
         ...spec,
@@ -244,6 +278,16 @@ export class AsanaClient {
     return response.json();
   }
 
+  private async resolveFirstWorkspace(
+    paths: string[],
+  ): Promise<string | undefined> {
+    for (const path of paths) {
+      const workspace = await this.resolveWorkspace(path);
+      if (workspace !== undefined) return workspace;
+    }
+    return undefined;
+  }
+
   private resolveWorkspace(path: string): Promise<string | undefined> {
     const cached = this.workspaceCache.get(path);
     if (cached) return cached;
@@ -259,6 +303,7 @@ export class AsanaClient {
       .then(async (response) => {
         const payload = (await response.json()) as {
           data?: {
+            gid?: string;
             workspace?: string | { gid?: string };
             parent?: {
               gid?: string;
@@ -267,6 +312,9 @@ export class AsanaClient {
             };
           };
         };
+        if (path.startsWith('/workspaces/') && payload.data?.gid) {
+          return payload.data.gid;
+        }
         const workspace =
           payload.data?.workspace ?? payload.data?.parent?.workspace;
         if (typeof workspace === 'string') return workspace;

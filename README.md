@@ -44,7 +44,7 @@ Create `~/.config/asn/config.json` (or pass `--config <path>`):
 }
 ```
 
-A mutating request aimed at a read-only workspace is rejected before the mutation is sent. For resource-addressed mutations, `asn` resolves the owning workspace from Asana first and caches that resolution for the run. Collection creates that target containers such as projects, teams, portfolios, tasks, or other parent resources resolve every referenced container before sending and fail closed if any ownership lookup is unresolved. The global `--guard-workspace <gid>` option is only a caller assertion used for additional fail-closed checks; it is never accepted as proof of resource or container ownership and cannot override a workspace in the request body. Workspace IDs are optional; with no configured IDs, `asn workspace list` discovers them from the PAT.
+A mutating request aimed at a read-only workspace is rejected before the mutation is sent. For resource-addressed mutations, `asn` resolves the owning workspace from Asana first and caches that resolution for the run. One-segment collection creates resolve every referenced container before sending, including scalar, object-shaped, and string-or-array references; polymorphic parent and target fields try only their plausible Asana container types, and any unresolved reference fails closed. A body `workspace` value is also confirmed through Asana before it can authorize a create. The global `--guard-workspace <gid>` option and an unverified body `workspace` value remain caller assertions used only for additional fail-closed checks; neither is accepted as proof of ownership. Workspace IDs are optional; with no configured IDs, `asn workspace list` discovers them from the PAT.
 
 ## Agentic usage
 

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { test } from 'node:test';
 
@@ -205,6 +206,316 @@ test('container in a writable workspace permits collection creation', async () =
   });
   assert.deepEqual(result, { data: { gid: 'created-task' } });
   assert.deepEqual(methods, ['GET', 'POST']);
+});
+
+test('caller workspace cannot bypass authoritative organization or target ownership', async () => {
+  for (const { path, data } of [
+    {
+      path: '/teams',
+      data: { name: 'pwned', organization: 'ro-organization' },
+    },
+    {
+      path: '/organization_exports',
+      data: { organization: 'ro-organization' },
+    },
+    {
+      path: '/access_requests',
+      data: { target: 'ro-target', user: 'me' },
+    },
+  ]) {
+    const calls: Array<{ url: string; method: string }> = [];
+    const client = new transportModule.AsanaClient({
+      token: 'safe-test-token',
+      workspaces: [
+        { gid: '111111', readOnly: true },
+        { gid: '222222', readOnly: false },
+      ],
+      fetch: async (input: string | URL | Request, init?: RequestInit) => {
+        const call = { url: String(input), method: init?.method ?? 'GET' };
+        calls.push(call);
+        return call.method === 'GET'
+          ? Response.json({ data: { workspace: { gid: '111111' } } })
+          : Response.json({ data: { gid: 'created' } });
+      },
+    });
+
+    await assert.rejects(
+      client.request({
+        method: 'POST',
+        path,
+        workspaceGids: ['222222'],
+        body: { data: { ...data, workspace: '222222' } },
+      }),
+      (error: unknown) => {
+        assert.ok(
+          ['READONLY_BLOCKED', 'READONLY_UNRESOLVED'].includes(
+            (error as { code: string }).code,
+          ),
+        );
+        return true;
+      },
+    );
+    assert.equal(
+      calls.filter((call) => call.method === 'POST').length,
+      0,
+      path,
+    );
+  }
+});
+
+test('object and string container reference shapes cannot be hidden by a decoy workspace', async () => {
+  for (const { path, data } of [
+    {
+      path: '/tasks',
+      data: { name: 'pwned', projects: [{ gid: 'ro-project' }] },
+    },
+    { path: '/tasks', data: { name: 'pwned', projects: 'ro-project' } },
+    { path: '/tasks', data: { name: 'pwned', parent: { gid: 'ro-task' } } },
+    { path: '/projects', data: { name: 'pwned', team: { gid: 'ro-team' } } },
+  ]) {
+    const calls: string[] = [];
+    const client = new transportModule.AsanaClient({
+      token: 'safe-test-token',
+      workspaces: [
+        { gid: '111111', readOnly: true },
+        { gid: '222222', readOnly: false },
+      ],
+      fetch: async (input: string | URL | Request, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        calls.push(method);
+        return method === 'GET'
+          ? Response.json({
+              data: {
+                workspace: {
+                  gid: String(input).includes('/workspaces/222222')
+                    ? '222222'
+                    : '111111',
+                },
+              },
+            })
+          : Response.json({ data: { gid: 'created' } });
+      },
+    });
+
+    await assert.rejects(
+      client.request({
+        method: 'POST',
+        path,
+        workspaceGids: ['222222'],
+        body: { data: { ...data, workspace: '222222' } },
+      }),
+      (error: unknown) => {
+        assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+        return true;
+      },
+    );
+    assert.equal(calls.includes('POST'), false, path);
+  }
+});
+
+test('body workspace authorizes a create only after server confirmation', async () => {
+  for (const confirmed of [false, true]) {
+    const methods: string[] = [];
+    const client = new transportModule.AsanaClient({
+      token: 'safe-test-token',
+      workspaces: [
+        { gid: '111111', readOnly: true },
+        { gid: '222222', readOnly: false },
+      ],
+      fetch: async (_input: string | URL | Request, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        methods.push(method);
+        return method === 'GET'
+          ? Response.json({ data: confirmed ? { gid: '222222' } : {} })
+          : Response.json({ data: { gid: 'created' } });
+      },
+    });
+    const request = {
+      method: 'POST',
+      path: '/tasks',
+      workspaceGids: ['222222'],
+      body: { data: { name: 'created', workspace: '222222' } },
+    };
+
+    if (confirmed) {
+      await client.request(request);
+      assert.deepEqual(methods, ['GET', 'POST']);
+    } else {
+      await assert.rejects(client.request(request), (error: unknown) => {
+        assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+        return true;
+      });
+      assert.deepEqual(methods, ['GET']);
+    }
+  }
+});
+
+test('project-parent collection creates resolve project ownership on supported endpoints', async () => {
+  for (const path of [
+    '/allocations',
+    '/budgets',
+    '/memberships',
+    '/rates',
+    '/status_updates',
+  ]) {
+    for (const { parent, workspace, sent } of [
+      { parent: 'rw-project', workspace: '222222', sent: true },
+      { parent: 'ro-project', workspace: '111111', sent: false },
+    ]) {
+      const methods: string[] = [];
+      const client = new transportModule.AsanaClient({
+        token: 'safe-test-token',
+        workspaces: [
+          { gid: '111111', readOnly: true },
+          { gid: '222222', readOnly: false },
+        ],
+        fetch: async (input: string | URL | Request, init?: RequestInit) => {
+          const method = init?.method ?? 'GET';
+          methods.push(method);
+          const url = String(input);
+          if (method === 'POST')
+            return Response.json({ data: { gid: 'created' } });
+          if (url.includes(`/projects/${parent}`)) {
+            return Response.json({ data: { workspace: { gid: workspace } } });
+          }
+          return Response.json({ data: {} }, { status: 404 });
+        },
+      });
+      const request = {
+        method: 'POST',
+        path,
+        body: {
+          data: {
+            parent,
+            ...(path === '/rates' ? { resource: 'user-1', rate: 1 } : {}),
+          },
+        },
+      };
+
+      if (sent) {
+        await client.request(request);
+        assert.equal(
+          methods.filter((method) => method === 'POST').length,
+          1,
+          path,
+        );
+      } else {
+        await assert.rejects(client.request(request), (error: unknown) => {
+          assert.ok(
+            ['READONLY_BLOCKED', 'READONLY_UNRESOLVED'].includes(
+              (error as { code: string }).code,
+            ),
+          );
+          return true;
+        });
+        assert.equal(methods.includes('POST'), false, path);
+      }
+    }
+  }
+});
+
+test('caller fields never upgrade an unresolved manifest collection create to sent', async () => {
+  const manifest = JSON.parse(
+    await readFile(new URL('../../gen/manifest.json', import.meta.url), 'utf8'),
+  ) as { commands: Array<{ method: string; path: string }> };
+  const paths = manifest.commands
+    .filter(
+      (entry) =>
+        entry.method === 'POST' &&
+        entry.path.split('/').filter(Boolean).length === 1 &&
+        !['/batch', '/webhooks', '/workspaces'].includes(entry.path),
+    )
+    .map((entry) => entry.path);
+  assert.equal(paths.length, 19);
+
+  for (const path of paths) {
+    for (const assertion of [undefined, '222222', 'invalid']) {
+      for (const bodyWorkspace of [undefined, '222222']) {
+        const methods: string[] = [];
+        const client = new transportModule.AsanaClient({
+          token: 'safe-test-token',
+          workspaces: [
+            { gid: '111111', readOnly: true },
+            { gid: '222222', readOnly: false },
+          ],
+          fetch: async (_input: string | URL | Request, init?: RequestInit) => {
+            const method = init?.method ?? 'GET';
+            methods.push(method);
+            return method === 'GET'
+              ? Response.json({ data: {} })
+              : Response.json({ data: { gid: 'created' } });
+          },
+        });
+
+        await assert.rejects(
+          client.request({
+            method: 'POST',
+            path,
+            ...(assertion ? { workspaceGids: [assertion] } : {}),
+            ...(bodyWorkspace
+              ? { body: { data: { workspace: bodyWorkspace } } }
+              : {}),
+          }),
+          (error: unknown) => {
+            assert.ok(
+              ['READONLY_BLOCKED', 'READONLY_UNRESOLVED'].includes(
+                (error as { code: string }).code,
+              ),
+            );
+            return true;
+          },
+        );
+        assert.equal(methods.includes('POST'), false, `${path} ${assertion}`);
+      }
+    }
+  }
+});
+
+test('polymorphic target and parent references use the first resolvable container type', async () => {
+  for (const { path, data, expectedLookups } of [
+    {
+      path: '/access_requests',
+      data: { target: 'project-1', user: 'me' },
+      expectedLookups: ['/projects/project-1'],
+    },
+    {
+      path: '/memberships',
+      data: { parent: 'portfolio-1', member: 'user-1' },
+      expectedLookups: [
+        '/projects/portfolio-1',
+        '/goals/portfolio-1',
+        '/portfolios/portfolio-1',
+      ],
+    },
+  ]) {
+    const lookups: string[] = [];
+    const client = new transportModule.AsanaClient({
+      token: 'safe-test-token',
+      workspaces: [{ gid: '111111', readOnly: true }],
+      fetch: async (input: string | URL | Request, init?: RequestInit) => {
+        const method = init?.method ?? 'GET';
+        const pathname = new URL(String(input)).pathname.replace(
+          '/api/1.0',
+          '',
+        );
+        if (method === 'POST')
+          return Response.json({ data: { gid: 'created' } });
+        lookups.push(pathname);
+        return expectedLookups.at(-1) === pathname
+          ? Response.json({ data: { workspace: { gid: '111111' } } })
+          : Response.json({ data: {} }, { status: 404 });
+      },
+    });
+
+    await assert.rejects(
+      client.request({ method: 'POST', path, body: { data } }),
+      (error: unknown) => {
+        assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+        return true;
+      },
+    );
+    assert.deepEqual(lookups, expectedLookups);
+  }
 });
 
 test('resource-addressed task mutation resolves its owning workspace before DELETE', async () => {
