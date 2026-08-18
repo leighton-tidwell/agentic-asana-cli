@@ -29,6 +29,184 @@ test('mutating request to a read-only workspace never reaches fetch', async () =
   assert.equal(calls, 0);
 });
 
+test('task creation resolves project ownership and ignores a bogus workspace assertion', async () => {
+  const calls: Array<{ url: string; method: string }> = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const call = { url: String(input), method: init?.method ?? 'GET' };
+      calls.push(call);
+      return call.method === 'GET'
+        ? Response.json({ data: { workspace: { gid: '111111' } } })
+        : Response.json({ data: { gid: 'created-task' } });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'POST',
+      path: '/tasks',
+      workspaceGids: ['999999'],
+      body: { data: { name: 'pwned', projects: ['1201111111111'] } },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.deepEqual(calls, [
+    {
+      url: 'https://app.asana.com/api/1.0/projects/1201111111111?opt_fields=workspace.gid,parent.gid,parent.resource_type',
+      method: 'GET',
+    },
+  ]);
+});
+
+test('task creation fails closed when any project workspace cannot resolve', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      if (method === 'POST') return Response.json({ data: { gid: 'created' } });
+      return String(input).includes('/projects/safe')
+        ? Response.json({ data: { workspace: { gid: '999999' } } })
+        : Response.json({ data: {} });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'POST',
+      path: '/tasks',
+      workspaceGids: ['not-a-real-gid'],
+      workspaceLookupPaths: ['/projects/safe', '/projects/unknown'],
+      body: { data: { projects: ['safe', 'unknown'] } },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.deepEqual(calls, ['GET', 'GET']);
+});
+
+test('project creation resolves team ownership before mutating', async () => {
+  const methods: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async (_input: string | URL | Request, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      methods.push(method);
+      return Response.json({ data: { workspace: { gid: '111111' } } });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'POST',
+      path: '/projects',
+      workspaceGids: ['999999'],
+      workspaceLookupPaths: ['/teams/team-1'],
+      body: { data: { name: 'pwned', team: 'team-1' } },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.deepEqual(methods, ['GET']);
+});
+
+test('attachment creation resolves parent ownership before mutating', async () => {
+  const methods: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async (_input: string | URL | Request, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      methods.push(method);
+      return Response.json({ data: { workspace: { gid: '111111' } } });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'POST',
+      path: '/attachments',
+      workspaceGids: ['999999'],
+      workspaceLookupPaths: ['/tasks/task-1'],
+      body: { data: { parent: 'task-1' } },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.deepEqual(methods, ['GET']);
+});
+
+test('container resolution network failure fails closed before mutation', async () => {
+  const methods: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async (_input: string | URL | Request, init?: RequestInit) => {
+      methods.push(init?.method ?? 'GET');
+      throw new TypeError('network down');
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'POST',
+      path: '/tasks',
+      workspaceGids: ['999999'],
+      workspaceLookupPaths: ['/projects/project-1'],
+      body: { data: { projects: ['project-1'] } },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.deepEqual(methods, ['GET']);
+});
+
+test('container in a writable workspace permits collection creation', async () => {
+  const methods: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async (_input: string | URL | Request, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      methods.push(method);
+      return method === 'GET'
+        ? Response.json({ data: { workspace: { gid: '999999' } } })
+        : Response.json({ data: { gid: 'created-task' } });
+    },
+  });
+
+  const result = await client.request({
+    method: 'POST',
+    path: '/tasks',
+    workspaceGids: ['999999'],
+    workspaceLookupPaths: ['/projects/project-1'],
+    body: { data: { projects: ['project-1'] } },
+  });
+  assert.deepEqual(result, { data: { gid: 'created-task' } });
+  assert.deepEqual(methods, ['GET', 'POST']);
+});
+
 test('resource-addressed task mutation resolves its owning workspace before DELETE', async () => {
   const calls: Array<{ url: string; method: string }> = [];
   const client = new transportModule.AsanaClient({

@@ -278,6 +278,55 @@ test('--guard-workspace cannot override a read-only workspace in the request bod
   }
 });
 
+test('collection create cannot use --guard-workspace as proof of project ownership', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'asn-readonly-container-'));
+  const config = join(directory, 'config.json');
+  await writeFile(
+    config,
+    JSON.stringify({ workspaces: [{ gid: '111111', readOnly: true }] }),
+  );
+  try {
+    for (const { globalArgs, fieldArgs } of [
+      { globalArgs: ['--guard-workspace', '999999'], fieldArgs: [] },
+      {
+        globalArgs: ['--guard-workspace', 'not-a-real-gid'],
+        fieldArgs: [],
+      },
+      { globalArgs: [], fieldArgs: ['--field', 'workspace=999999'] },
+    ]) {
+      const run = spawnSync(
+        process.execPath,
+        [
+          '--import',
+          'tsx',
+          'src/main.ts',
+          '--dry-run',
+          ...globalArgs,
+          '--config',
+          config,
+          'tasks',
+          'create-task',
+          ...fieldArgs,
+          '--field',
+          'name=pwned',
+          '--field',
+          'projects=["1201111111111"]',
+        ],
+        {
+          cwd: root,
+          encoding: 'utf8',
+          env: { ...process.env, ASANA_PAT: 'safe-generated-test-token' },
+        },
+      );
+      assert.equal(run.status, 4, run.stderr);
+      assert.equal(run.stdout, '');
+      assert.equal(JSON.parse(run.stderr).error.code, 'READONLY_UNRESOLVED');
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test('invalid batch JSON fails closed when read-only policy is active', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'asn-readonly-batch-'));
   const config = join(directory, 'config.json');

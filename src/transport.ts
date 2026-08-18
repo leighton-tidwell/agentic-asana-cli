@@ -21,6 +21,7 @@ export interface RequestSpec {
   workspaceGid?: string;
   workspaceGids?: string[];
   workspaceLookupPath?: string;
+  workspaceLookupPaths?: string[];
   headers?: Record<string, string>;
   body?: unknown;
 }
@@ -35,6 +36,48 @@ function isWebhookCreate(spec: RequestSpec): boolean {
     spec.method.toUpperCase() === 'POST' &&
     spec.path.split('?')[0] === '/webhooks'
   );
+}
+
+function collectionWorkspaceLookupPaths(
+  spec: RequestSpec,
+): string[] | undefined {
+  const segments = spec.path.split('?')[0]?.split('/').filter(Boolean) ?? [];
+  if (
+    spec.method.toUpperCase() !== 'POST' ||
+    segments.length !== 1 ||
+    ['batch', 'webhooks', 'workspaces'].includes(segments[0] ?? '')
+  ) {
+    return undefined;
+  }
+  const data = (spec.body as { data?: Record<string, unknown> } | undefined)
+    ?.data;
+  if (!data || typeof data !== 'object') return [];
+  const paths: string[] = [];
+  for (const [field, collection] of [
+    ['project', 'projects'],
+    ['team', 'teams'],
+    ['portfolio', 'portfolios'],
+    ['parent', 'tasks'],
+    ['resource', 'tasks'],
+    ['goal', 'goals'],
+    ['task', 'tasks'],
+  ] as const) {
+    const gid = data[field];
+    if (typeof gid === 'string' || typeof gid === 'number') {
+      paths.push(`/${collection}/${encodeURIComponent(String(gid))}`);
+    }
+  }
+  if (Array.isArray(data.projects)) {
+    for (const gid of data.projects) {
+      if (typeof gid === 'string' || typeof gid === 'number') {
+        paths.push(`/projects/${encodeURIComponent(String(gid))}`);
+      }
+    }
+  }
+  const bodyWorkspace = data.workspace;
+  return paths.length > 0 || bodyWorkspace === undefined
+    ? paths.filter((path, index) => paths.indexOf(path) === index)
+    : undefined;
 }
 
 export class AsanaClient {
@@ -55,9 +98,14 @@ export class AsanaClient {
         new Promise((resolve) => setTimeout(resolve, milliseconds)));
   }
 
+  private workspaceLookupPaths(spec: RequestSpec): string[] | undefined {
+    if (spec.workspaceLookupPath) return [spec.workspaceLookupPath];
+    return spec.workspaceLookupPaths ?? collectionWorkspaceLookupPaths(spec);
+  }
+
   private requiresWorkspaceResolution(spec: RequestSpec): boolean {
     return Boolean(
-      spec.workspaceLookupPath &&
+      this.workspaceLookupPaths(spec) &&
       this.workspaces.some((workspace) => workspace.readOnly) &&
       ['POST', 'PUT', 'PATCH', 'DELETE'].includes(spec.method.toUpperCase()),
     );
@@ -89,17 +137,27 @@ export class AsanaClient {
 
   async request(spec: RequestSpec): Promise<unknown> {
     let guardedSpec = spec;
+    let workspaceResolved = false;
     if (this.requiresWorkspaceResolution(spec)) {
       const asserted = this.assertedWorkspaces(spec);
       if (asserted.length > 0) {
         enforceReadOnly(spec.method, asserted, this.workspaces);
       }
-      const resolved = await this.resolveWorkspace(spec.workspaceLookupPath!);
+      const lookupPaths = this.workspaceLookupPaths(spec) ?? [];
+      const resolved = await Promise.all(
+        lookupPaths.map((path) => this.resolveWorkspace(path)),
+      );
       guardedSpec = {
         ...spec,
-        workspaceGids: resolved ? [...asserted, resolved] : [],
+        workspaceGids: resolved.every(
+          (workspaceGid): workspaceGid is string => workspaceGid !== undefined,
+        )
+          ? resolved
+          : [],
         workspaceLookupPath: undefined,
+        workspaceLookupPaths: undefined,
       };
+      workspaceResolved = true;
     }
     const webhook = isWebhookCreate(spec);
     if (webhook && this.workspaces.some((workspace) => workspace.readOnly)) {
@@ -145,6 +203,13 @@ export class AsanaClient {
           'webhook target origin is not allowlisted; use --allow-unlisted-webhook-target for explicit operator opt-in',
         );
       }
+    } else if (workspaceResolved) {
+      enforceReadOnly(
+        guardedSpec.method,
+        guardedSpec.workspaceGids,
+        this.workspaces,
+        { path: guardedSpec.path, body: guardedSpec.body },
+      );
     } else {
       this.assertAllowed(guardedSpec);
     }
