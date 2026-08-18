@@ -29,6 +29,153 @@ test('mutating request to a read-only workspace never reaches fetch', async () =
   assert.equal(calls, 0);
 });
 
+test('resource-addressed task mutation resolves its owning workspace before DELETE', async () => {
+  const calls: Array<{ url: string; method: string }> = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(input), method: init?.method ?? 'GET' });
+      return String(input).includes('/tasks/1201234567890') &&
+        (init?.method ?? 'GET') === 'GET'
+        ? Response.json({ data: { workspace: { gid: '111111' } } })
+        : Response.json({ data: {} });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'DELETE',
+      path: '/tasks/1201234567890',
+      workspaceGids: ['999999'],
+      workspaceLookupPath: '/tasks/1201234567890',
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.deepEqual(calls, [
+    {
+      url: 'https://app.asana.com/api/1.0/tasks/1201234567890?opt_fields=workspace.gid,parent.gid,parent.resource_type',
+      method: 'GET',
+    },
+  ]);
+});
+
+test('unresolvable resource workspace fails closed despite a caller assertion', async () => {
+  const calls: Array<{ url: string; method: string }> = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(input), method: init?.method ?? 'GET' });
+      return Response.json({ data: {} });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'DELETE',
+      path: '/tasks/unknown',
+      workspaceGids: ['999999'],
+      workspaceLookupPath: '/tasks/unknown',
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0]?.method, 'GET');
+});
+
+test('resolved non-read-only resource workspace permits the mutation', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      return method === 'GET'
+        ? Response.json({ data: { workspace: { gid: '999999' } } })
+        : Response.json({ data: { deleted: true } });
+    },
+  });
+
+  const result = await client.request({
+    method: 'DELETE',
+    path: '/tasks/safe-task',
+    workspaceGids: ['999999'],
+    workspaceLookupPath: '/tasks/safe-task',
+  });
+  assert.deepEqual(result, { data: { deleted: true } });
+  assert.deepEqual(calls, ['GET', 'DELETE']);
+});
+
+test('attachment workspace resolution blocks DELETE and caches the lookup', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push(init?.method ?? 'GET');
+      return Response.json({ data: { workspace: { gid: '111111' } } });
+    },
+  });
+  const request = {
+    method: 'DELETE',
+    path: '/attachments/12345',
+    workspaceGids: ['999999'],
+    workspaceLookupPath: '/attachments/12345',
+  };
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await assert.rejects(client.request(request), (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      return true;
+    });
+  }
+  assert.deepEqual(calls, ['GET']);
+});
+
+test('attachment resolver follows its parent task to the owning workspace', async () => {
+  const urls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async (input: string | URL | Request) => {
+      const url = String(input);
+      urls.push(url);
+      return url.includes('/attachments/')
+        ? Response.json({
+            data: { parent: { gid: 'task-1', resource_type: 'task' } },
+          })
+        : Response.json({ data: { workspace: { gid: '111111' } } });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'DELETE',
+      path: '/attachments/12345',
+      workspaceGids: ['999999'],
+      workspaceLookupPath: '/attachments/12345',
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      return true;
+    },
+  );
+  assert.deepEqual(urls, [
+    'https://app.asana.com/api/1.0/attachments/12345?opt_fields=parent.gid,parent.resource_type',
+    'https://app.asana.com/api/1.0/tasks/task-1?opt_fields=workspace.gid,parent.gid,parent.resource_type',
+  ]);
+});
+
 test('pagination follows next_page offsets and honors a result limit', async () => {
   const urls: string[] = [];
   const pages = [
@@ -126,4 +273,331 @@ test('transport sends multipart Readable bodies without JSON encoding', async ()
     captured.headers['Content-Type'],
     'multipart/form-data; boundary=test',
   );
+});
+
+test('batch blocks a mutating sub-request to a read-only workspace before fetch', async () => {
+  let calls = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async () => {
+      calls += 1;
+      return new Response('{}');
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'POST',
+      path: '/batch',
+      workspaceGid: '999999',
+      body: {
+        data: {
+          actions: [
+            {
+              method: 'post',
+              relative_path: '/tasks',
+              data: { workspace: '111111' },
+            },
+          ],
+        },
+      },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.equal(calls, 0);
+});
+
+test('batch with an unexpected body shape fails closed before fetch', async () => {
+  let calls = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async () => {
+      calls += 1;
+      return new Response('{}');
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'POST',
+      path: '/batch',
+      workspaceGid: '999999',
+      body: { data: { actions: 'not-an-array' } },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.equal(calls, 0);
+});
+
+test('batch with a malformed action fails closed before fetch', async () => {
+  let calls = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async () => {
+      calls += 1;
+      return new Response('{}');
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'POST',
+      path: '/batch',
+      workspaceGid: '999999',
+      body: { data: { actions: [{}] } },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.equal(calls, 0);
+});
+
+test('batch permits read-only workspace GET sub-requests', async () => {
+  let calls = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async () => {
+      calls += 1;
+      return Response.json({ data: [] });
+    },
+  });
+
+  await client.request({
+    method: 'POST',
+    path: '/batch',
+    body: {
+      data: {
+        actions: [
+          {
+            method: 'get',
+            relative_path: '/tasks?workspace=111111',
+            data: { workspace: '111111' },
+          },
+        ],
+      },
+    },
+  });
+  assert.equal(calls, 1);
+});
+
+test('batch blocks a mutating sub-request with an unresolved workspace', async () => {
+  let calls = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async () => {
+      calls += 1;
+      return new Response('{}');
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'POST',
+      path: '/batch',
+      workspaceGid: '999999',
+      body: {
+        data: {
+          actions: [{ method: 'delete', relative_path: '/tasks/123' }],
+        },
+      },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.equal(calls, 0);
+});
+
+test('batch recursively blocks a nested batch mutation', async () => {
+  let calls = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    fetch: async () => {
+      calls += 1;
+      return new Response('{}');
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'POST',
+      path: '/batch',
+      body: {
+        data: {
+          actions: [
+            {
+              method: 'post',
+              relative_path: '/batch',
+              data: {
+                actions: [
+                  {
+                    method: 'post',
+                    relative_path: '/tasks',
+                    data: { workspace: '111111' },
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      return true;
+    },
+  );
+  assert.equal(calls, 0);
+});
+
+test('webhook creation resolves its resource workspace and blocks before POST', async () => {
+  let calls = 0;
+  const resolvedResources: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '111111', readOnly: true }],
+    resolveWorkspace: async (resourceGid: string) => {
+      resolvedResources.push(resourceGid);
+      return '111111';
+    },
+    fetch: async () => {
+      calls += 1;
+      return new Response('{}');
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'POST',
+      path: '/webhooks?opt_fields=gid',
+      workspaceGid: '999999',
+      body: {
+        data: {
+          resource: '1201234567890',
+          target: 'https://attacker.example/hook',
+        },
+      },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.deepEqual(resolvedResources, ['1201234567890']);
+  assert.equal(calls, 0);
+});
+
+test('webhook creation blocks an unlisted external target without opt-in', async () => {
+  let calls = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [
+      { gid: '111111', readOnly: true },
+      { gid: '999999', readOnly: false },
+    ],
+    resolveWorkspace: async () => '999999',
+    webhookTargetAllowlist: ['https://hooks.example'],
+    fetch: async () => {
+      calls += 1;
+      return new Response('{}');
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'POST',
+      path: '/webhooks',
+      body: {
+        data: {
+          resource: '1201234567890',
+          target: 'https://attacker.example/hook',
+        },
+      },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.equal(calls, 0);
+});
+
+test('webhook creation permits an allowlisted target origin', async () => {
+  let calls = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [
+      { gid: '111111', readOnly: true },
+      { gid: '999999', readOnly: false },
+    ],
+    resolveWorkspace: async () => '999999',
+    webhookTargetAllowlist: ['https://hooks.example/approved-path'],
+    fetch: async () => {
+      calls += 1;
+      return Response.json({ data: { gid: 'webhook-1' } });
+    },
+  });
+
+  await client.request({
+    method: 'POST',
+    path: '/webhooks',
+    body: {
+      data: {
+        resource: '1201234567890',
+        target: 'https://hooks.example/callback',
+      },
+    },
+  });
+  assert.equal(calls, 1);
+});
+
+test('webhook creation permits an unlisted target with explicit opt-in', async () => {
+  let calls = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [
+      { gid: '111111', readOnly: true },
+      { gid: '999999', readOnly: false },
+    ],
+    resolveWorkspace: async () => '999999',
+    webhookTargetAllowlist: [],
+    allowUnlistedWebhookTarget: true,
+    fetch: async () => {
+      calls += 1;
+      return Response.json({ data: { gid: 'webhook-1' } });
+    },
+  });
+
+  await client.request({
+    method: 'POST',
+    path: '/webhooks',
+    body: {
+      data: {
+        resource: '1201234567890',
+        target: 'https://operator-approved.example/callback',
+      },
+    },
+  });
+  assert.equal(calls, 1);
 });

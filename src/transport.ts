@@ -10,12 +10,17 @@ export interface ClientOptions {
   maxAttempts?: number;
   maxWaitMs?: number;
   timeoutMs?: number;
+  resolveWorkspace?: (resourceGid: string) => Promise<string | undefined>;
+  webhookTargetAllowlist?: string[];
+  allowUnlistedWebhookTarget?: boolean;
 }
 
 export interface RequestSpec {
   method: string;
   path: string;
   workspaceGid?: string;
+  workspaceGids?: string[];
+  workspaceLookupPath?: string;
   headers?: Record<string, string>;
   body?: unknown;
 }
@@ -25,10 +30,21 @@ interface Page<T> {
   next_page: { offset: string } | null;
 }
 
+function isWebhookCreate(spec: RequestSpec): boolean {
+  return (
+    spec.method.toUpperCase() === 'POST' &&
+    spec.path.split('?')[0] === '/webhooks'
+  );
+}
+
 export class AsanaClient {
   private readonly fetchFn: typeof globalThis.fetch;
   private readonly workspaces: WorkspacePolicy[];
   private readonly sleep: (milliseconds: number) => Promise<void>;
+  private readonly workspaceCache = new Map<
+    string,
+    Promise<string | undefined>
+  >();
 
   constructor(private readonly options: ClientOptions) {
     this.fetchFn = options.fetch ?? globalThis.fetch;
@@ -39,12 +55,99 @@ export class AsanaClient {
         new Promise((resolve) => setTimeout(resolve, milliseconds)));
   }
 
+  private requiresWorkspaceResolution(spec: RequestSpec): boolean {
+    return Boolean(
+      spec.workspaceLookupPath &&
+      this.workspaces.some((workspace) => workspace.readOnly) &&
+      ['POST', 'PUT', 'PATCH', 'DELETE'].includes(spec.method.toUpperCase()),
+    );
+  }
+
+  private assertedWorkspaces(spec: RequestSpec): string[] {
+    return spec.workspaceGids ?? (spec.workspaceGid ? [spec.workspaceGid] : []);
+  }
+
   assertAllowed(spec: RequestSpec): void {
-    enforceReadOnly(spec.method, spec.workspaceGid, this.workspaces);
+    if (this.requiresWorkspaceResolution(spec)) {
+      const asserted = this.assertedWorkspaces(spec);
+      if (asserted.length > 0) {
+        enforceReadOnly(spec.method, asserted, this.workspaces);
+      }
+      enforceReadOnly(spec.method, undefined, this.workspaces);
+    }
+    const webhook = isWebhookCreate(spec);
+    enforceReadOnly(
+      spec.method,
+      webhook ? undefined : (spec.workspaceGids ?? spec.workspaceGid),
+      this.workspaces,
+      {
+        path: spec.path,
+        body: spec.body,
+      },
+    );
   }
 
   async request(spec: RequestSpec): Promise<unknown> {
-    this.assertAllowed(spec);
+    let guardedSpec = spec;
+    if (this.requiresWorkspaceResolution(spec)) {
+      const asserted = this.assertedWorkspaces(spec);
+      if (asserted.length > 0) {
+        enforceReadOnly(spec.method, asserted, this.workspaces);
+      }
+      const resolved = await this.resolveWorkspace(spec.workspaceLookupPath!);
+      guardedSpec = {
+        ...spec,
+        workspaceGids: resolved ? [...asserted, resolved] : [],
+        workspaceLookupPath: undefined,
+      };
+    }
+    const webhook = isWebhookCreate(spec);
+    if (webhook && this.workspaces.some((workspace) => workspace.readOnly)) {
+      const resource = (
+        spec.body as { data?: { resource?: unknown } } | undefined
+      )?.data?.resource;
+      const workspaceGid =
+        resource !== undefined && this.options.resolveWorkspace
+          ? await this.options.resolveWorkspace(String(resource))
+          : this.workspaces.some(
+                (workspace) => workspace.gid === String(resource),
+              )
+            ? String(resource)
+            : undefined;
+      enforceReadOnly(spec.method, workspaceGid, this.workspaces, {
+        path: spec.path,
+        body: spec.body,
+      });
+      const target = (spec.body as { data?: { target?: unknown } } | undefined)
+        ?.data?.target;
+      let targetOrigin: string | undefined;
+      try {
+        targetOrigin =
+          typeof target === 'string' ? new URL(target).origin : undefined;
+      } catch {
+        targetOrigin = undefined;
+      }
+      const allowedOrigins = (
+        this.options.webhookTargetAllowlist ?? []
+      ).flatMap((allowed) => {
+        try {
+          return [new URL(allowed).origin];
+        } catch {
+          return [];
+        }
+      });
+      if (
+        !this.options.allowUnlistedWebhookTarget &&
+        (!targetOrigin || !allowedOrigins.includes(targetOrigin))
+      ) {
+        throw new CliError(
+          'READONLY_BLOCKED',
+          'webhook target origin is not allowlisted; use --allow-unlisted-webhook-target for explicit operator opt-in',
+        );
+      }
+    } else {
+      this.assertAllowed(guardedSpec);
+    }
     const streaming = spec.body instanceof Readable;
     const init: RequestInit & { duplex?: 'half' } = {
       method: spec.method,
@@ -74,6 +177,47 @@ export class AsanaClient {
       init,
     );
     return response.json();
+  }
+
+  private resolveWorkspace(path: string): Promise<string | undefined> {
+    const cached = this.workspaceCache.get(path);
+    if (cached) return cached;
+    const optFields = path.startsWith('/attachments/')
+      ? 'parent.gid,parent.resource_type'
+      : 'workspace.gid,parent.gid,parent.resource_type';
+    const resolution = this.fetchWithRetry(
+      `https://app.asana.com/api/1.0${path}?opt_fields=${optFields}`,
+      {
+        headers: { Authorization: ['Bearer', this.options.token].join(' ') },
+      },
+    )
+      .then(async (response) => {
+        const payload = (await response.json()) as {
+          data?: {
+            workspace?: string | { gid?: string };
+            parent?: {
+              gid?: string;
+              resource_type?: string;
+              workspace?: string | { gid?: string };
+            };
+          };
+        };
+        const workspace =
+          payload.data?.workspace ?? payload.data?.parent?.workspace;
+        if (typeof workspace === 'string') return workspace;
+        if (workspace?.gid) return workspace.gid;
+        const parent = payload.data?.parent;
+        if (parent?.gid && parent.resource_type) {
+          const collection = `${parent.resource_type.replace(/y$/, 'ie')}s`;
+          return this.resolveWorkspace(
+            `/${collection}/${encodeURIComponent(parent.gid)}`,
+          );
+        }
+        return undefined;
+      })
+      .catch(() => undefined);
+    this.workspaceCache.set(path, resolution);
+    return resolution;
   }
 
   async paginate<T>(

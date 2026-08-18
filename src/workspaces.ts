@@ -1,5 +1,7 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { dirname } from 'node:path';
+import { readFile } from 'node:fs/promises';
+import { writePrivateFile } from './config.js';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 export interface Workspace {
   gid: string;
@@ -28,6 +30,11 @@ interface CacheFile {
   data: Workspace[];
 }
 
+export function defaultWorkspaceCachePath(env = process.env): string {
+  const base = env.XDG_CACHE_HOME || join(homedir(), '.cache');
+  return join(base, 'asn', 'workspaces.json');
+}
+
 export async function listWorkspaces(
   options: ListOptions,
 ): Promise<Workspace[]> {
@@ -53,9 +60,9 @@ export async function listWorkspaces(
     ...workspace,
     readOnly: false,
   }));
-  await mkdir(dirname(options.cachePath), { recursive: true });
-  await writeFile(options.cachePath, JSON.stringify({ cachedAt: now, data }), {
-    mode: 0o600,
-  });
+  await writePrivateFile(
+    options.cachePath,
+    JSON.stringify({ cachedAt: now, data }),
+  );
   return data;
 }

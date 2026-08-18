@@ -1,7 +1,8 @@
 import type { Command } from 'commander';
 import { readFile } from 'node:fs/promises';
-import { readConfig, resolveToken } from './config.js';
+import { readConfig, redactSecrets, resolveToken } from './config.js';
 import { CliError } from './errors.js';
+import { assertSafeLocalFile } from './file-access.js';
 import type {
   ApiCommand,
   CommandManifest,
@@ -9,13 +10,17 @@ import type {
 } from './manifest.js';
 import { renderOutput, type OutputFormat } from './output.js';
 import { AsanaClient, type RequestSpec } from './transport.js';
+import { defaultWorkspaceCachePath } from './workspaces.js';
 
 interface GeneratedOptions {
   token?: string;
   config: string;
   output: OutputFormat;
   dryRun?: boolean;
+  guardWorkspace?: string;
   workspace?: string;
+  allowOutsideCwd?: boolean;
+  allowUnlistedWebhookTarget?: boolean;
   [key: string]: unknown;
 }
 
@@ -99,21 +104,34 @@ export function buildRequest(
       ? ((body as { data?: { workspace?: unknown }; workspace?: unknown }).data
           ?.workspace ?? (body as { workspace?: unknown }).workspace)
       : undefined;
-  const explicitWorkspace =
-    options.workspace ??
-    options.workspaceGid ??
-    options.workspace_gid ??
-    bodyWorkspace ??
-    positional[
-      pathParameters.findIndex(
-        (parameter) => parameter.name === 'workspace_gid',
-      )
-    ];
+  const workspacePathIndex = pathParameters.findIndex(
+    (parameter) => parameter.name === 'workspace_gid',
+  );
+  const workspaceGids = [
+    options.guardWorkspace,
+    options.workspace,
+    options.workspaceGid,
+    options.workspace_gid,
+    bodyWorkspace,
+    ...(workspacePathIndex >= 0 ? [positional[workspacePathIndex]] : []),
+  ]
+    .filter((value) => value !== undefined)
+    .map(scalar)
+    .filter((gid, index, gids) => gids.indexOf(gid) === index);
+  const pathWithoutQuery = path.split('?')[0] ?? path;
+  const resourceSegments = pathWithoutQuery.split('/').filter(Boolean);
+  const workspaceLookupPath =
+    resourceSegments.length >= 2 && resourceSegments[0] !== 'workspaces'
+      ? `/${resourceSegments[0]}/${resourceSegments[1]}`
+      : undefined;
 
   return {
     method: entry.method,
     path,
-    ...(explicitWorkspace ? { workspaceGid: scalar(explicitWorkspace) } : {}),
+    ...(workspaceGids.length > 0
+      ? { workspaceGid: workspaceGids[0], workspaceGids }
+      : {}),
+    ...(workspaceLookupPath ? { workspaceLookupPath } : {}),
     ...(body !== undefined ? { body } : {}),
   };
 }
@@ -138,28 +156,58 @@ async function executeGenerated(
     typeof options.bodyJson === 'string' &&
     options.bodyJson.startsWith('@')
   ) {
-    options.bodyJson = await readFile(options.bodyJson.slice(1), 'utf8');
+    const bodyPath = options.bodyJson.slice(1);
+    await assertSafeLocalFile(bodyPath, {
+      protectedPaths: [options.config, defaultWorkspaceCachePath()],
+      allowOutsideCwd: options.allowOutsideCwd,
+    });
+    options.bodyJson = await readFile(bodyPath, 'utf8');
   }
-  const request = buildRequest(entry, positional, options);
   const workspaces = (config.workspaces ?? []).map((workspace) => ({
     gid: workspace.gid,
-    readOnly: workspace.readOnly ?? false,
+    readOnly: workspace.readOnly,
   }));
-  const client = new AsanaClient({ token, workspaces });
+  let request: RequestSpec;
+  try {
+    request = buildRequest(entry, positional, options);
+  } catch (error) {
+    if (
+      entry.method === 'POST' &&
+      entry.path === '/batch' &&
+      workspaces.some((workspace) => workspace.readOnly)
+    ) {
+      throw new CliError(
+        'READONLY_UNRESOLVED',
+        'batch body could not be parsed while read-only protection is active',
+      );
+    }
+    throw error;
+  }
+  const client = new AsanaClient({
+    token,
+    workspaces,
+    webhookTargetAllowlist: config.webhookTargetAllowlist,
+    allowUnlistedWebhookTarget: options.allowUnlistedWebhookTarget,
+  });
   if (options.dryRun) {
     client.assertAllowed(request);
+    const rendered = JSON.stringify({
+      method: request.method,
+      url: `https://app.asana.com/api/1.0${request.path}`,
+      headers: {
+        Authorization: 'Bearer ***',
+        ...(request.body !== undefined
+          ? { 'Content-Type': 'application/json' }
+          : {}),
+      },
+      ...(request.body !== undefined ? { body: request.body } : {}),
+    });
     process.stdout.write(
-      `${JSON.stringify({
-        method: request.method,
-        url: `https://app.asana.com/api/1.0${request.path}`,
-        headers: {
-          Authorization: 'Bearer ***',
-          ...(request.body !== undefined
-            ? { 'Content-Type': 'application/json' }
-            : {}),
-        },
-        ...(request.body !== undefined ? { body: request.body } : {}),
-      })}\n`,
+      `${redactSecrets(rendered, [
+        process.env.ASANA_PAT ?? '',
+        config.token ?? '',
+        options.token ?? '',
+      ])}\n`,
     );
     return;
   }

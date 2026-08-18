@@ -1,6 +1,6 @@
 {
   "name": "@agentic-asana/asn",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Agent-first Asana CLI",
   "license": "MIT",
   "author": "Leighton Tidwell",

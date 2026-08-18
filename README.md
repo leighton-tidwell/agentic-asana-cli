@@ -40,7 +40,7 @@ Create `~/.config/asn/config.json` (or pass `--config <path>`):
 }
 ```
 
-A mutating request aimed at a read-only workspace is rejected before the network request. Workspace IDs are optional; with no configured IDs, `asn workspace list` discovers them from the PAT.
+A mutating request aimed at a read-only workspace is rejected before the mutation is sent. For resource-addressed mutations, `asn` resolves the owning workspace from Asana first and caches that resolution for the run. The global `--guard-workspace <gid>` option is only a caller assertion used for additional fail-closed checks; it is never accepted as proof of resource ownership and cannot override a workspace in the request body. Workspace IDs are optional; with no configured IDs, `asn workspace list` discovers them from the PAT.
 
 ## Agentic usage
 
@@ -50,13 +50,13 @@ Discover commands instead of guessing flags:
 asn schema > asana-command-catalog.json
 asn tasks get-tasks-for-project 1234567890123456 \
   --opt-fields name assignee.name completed
-asn --dry-run --workspace 1234567890123456 tasks create-task \
+asn --dry-run --guard-workspace 1234567890123456 tasks create-task \
   --field workspace=1234567890123456 --field name='Agent-created task'
 asn attachments create --parent 1234567890123456 --file ./report.pdf
 asn attachments get-attachments-for-object --parent 1234567890123456
 ```
 
-The pinned OpenAPI manifest generates 249 invocable commands named `asn <resource> <kebab-operation-id>`. Mutations accept repeatable `--field key=value` inputs or a complete body through `--body-json '<json>'`, `--body-json @file.json`, or `--body-json -` for stdin.
+The pinned OpenAPI manifest generates 249 invocable commands named `asn <resource> <kebab-operation-id>`. Generated API parameters keep their spec-derived names and belong after the operation (for example, `asn webhooks get-webhooks --workspace <gid>` and `asn tasks get-task <gid> --opt-fields name`). The distinct program-level `--guard-workspace <gid>` flag is only a read-only guard assertion; it is not sent as an API query parameter. Mutations accept repeatable `--field key=value` inputs or a complete body through `--body-json '<json>'`, `--body-json @file.json`, or `--body-json -` for stdin.
 
 Successful output is JSON by default. Errors are JSON on stderr with stable exit codes: `2` usage, `3` authentication, `4` read-only/forbidden, `5` not found, `6` rate-limited, `7` server, `8` network, and `9` request conflict.
 

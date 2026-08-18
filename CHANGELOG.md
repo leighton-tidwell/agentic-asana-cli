@@ -4,6 +4,14 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-08-18
+
+### Fixed
+
+- Prevented global CLI options from shadowing generated API flags.
+- Hardened read-only workspace ownership checks for resource mutations, batch requests, webhooks, and attachments.
+- Restricted local-file reads, redacted PATs, hardened attachment downloads, and enforced private config/cache permissions with fail-closed validation.
+
 ## [0.1.1] - 2026-08-18
 
 ### Fixed

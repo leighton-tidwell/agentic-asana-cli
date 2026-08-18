@@ -6,7 +6,11 @@ import { createProgram } from '../../src/main.js';
 
 type Manifest = {
   operations: number;
-  commands: Array<{ command: [string, string]; operationId: string }>;
+  commands: Array<{
+    command: [string, string];
+    operationId: string;
+    parameters: Array<{ flag?: string }>;
+  }>;
 };
 
 const root = resolve(import.meta.dirname, '../..');
@@ -17,6 +21,8 @@ test('every vendored OpenAPI operation has an invocable CLI command', async () =
   ) as Manifest;
   const program = createProgram();
   const missing: string[] = [];
+  const shadowed: string[] = [];
+  const globalFlags = new Set(program.options.map((option) => option.long));
 
   for (const entry of manifest.commands) {
     const resource = program.commands.find(
@@ -26,9 +32,19 @@ test('every vendored OpenAPI operation has an invocable CLI command', async () =
       (command) => command.name() === entry.command[1],
     );
     if (!operation) missing.push(entry.operationId);
+    for (const parameter of entry.parameters) {
+      if (parameter.flag && globalFlags.has(parameter.flag)) {
+        shadowed.push(`${entry.command.join(' ')} ${parameter.flag}`);
+      }
+    }
   }
 
   assert.equal(missing.length, 0, `missing operations: ${missing.join(', ')}`);
+  assert.equal(
+    shadowed.length,
+    0,
+    `generated flags shadowed by global options: ${shadowed.join(', ')}`,
+  );
   assert.equal(manifest.operations, manifest.commands.length);
   console.log(
     `OpenAPI command coverage: ${manifest.operations}/${manifest.operations} operations (100%)`,

@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 import { realpathSync } from 'node:fs';
-import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { homedir } from 'node:os';
 import { Command } from 'commander';
 import {
   defaultConfigPath,
@@ -14,7 +12,7 @@ import {
 import { AsanaClient } from './transport.js';
 import { CliError, errorEnvelope } from './errors.js';
 import { renderOutput, type OutputFormat } from './output.js';
-import { listWorkspaces } from './workspaces.js';
+import { defaultWorkspaceCachePath, listWorkspaces } from './workspaces.js';
 import { registerGeneratedCommands } from './dispatch.js';
 import { loadManifest } from './manifest.js';
 import { registerAttachmentCommands } from './attachments.js';
@@ -23,15 +21,24 @@ export function createProgram(): Command {
   const program = new Command()
     .name('asn')
     .description('Agent-first Asana CLI')
-    .version('0.1.1')
+    .version('0.1.2')
     .option('--token <pat>', 'PAT fallback (prefer ASANA_PAT)')
     .option('--config <path>', 'config file path', defaultConfigPath())
     .option('--output <format>', 'json, jsonl, or table', 'json')
     .option('--dry-run', 'print the redacted request without sending')
-    .option('--opt-fields <fields>', 'comma-separated optional fields')
-    .option('--workspace <gid>', 'target workspace gid for guard resolution')
+    .option(
+      '--guard-workspace <gid>',
+      'workspace gid assertion used only for read-only guard resolution',
+    )
+    .option(
+      '--allow-outside-cwd',
+      'allow reading non-sensitive files outside the working directory',
+    )
+    .option(
+      '--allow-unlisted-webhook-target',
+      'explicitly allow a webhook target outside webhookTargetAllowlist',
+    )
     .option('--json-help', 'emit the machine-readable command catalog')
-    .option('--verbose', 'write redacted request diagnostics to stderr')
     .action(() => {
       if (program.opts<{ jsonHelp?: boolean }>().jsonHelp) {
         process.stdout.write(`${JSON.stringify(loadManifest())}\n`);
@@ -69,18 +76,19 @@ export function createProgram(): Command {
     .option('--refresh', 'ignore the workspace cache')
     .option('--limit <count>', 'maximum workspaces', (value) => Number(value))
     .option('--all', 'fetch every page')
+    .option('--opt-fields <fields>', 'comma-separated optional fields')
     .action(
       async (commandOptions: {
         refresh?: boolean;
         limit?: number;
         all?: boolean;
+        optFields?: string;
       }) => {
         const options = program.opts<{
           token?: string;
           config: string;
           output: OutputFormat;
           dryRun?: boolean;
-          optFields?: string;
         }>();
         const config = await readConfig(options.config);
         const token = resolveToken({
@@ -90,8 +98,8 @@ export function createProgram(): Command {
         });
         if (!token)
           throw new CliError('AUTH', 'no Personal Access Token configured');
-        const query = options.optFields
-          ? `?opt_fields=${encodeURIComponent(options.optFields)}`
+        const query = commandOptions.optFields
+          ? `?opt_fields=${encodeURIComponent(commandOptions.optFields)}`
           : '';
         if (options.dryRun) {
           process.stdout.write(
@@ -99,16 +107,11 @@ export function createProgram(): Command {
           );
           return;
         }
-        const configured = (config.workspaces ?? []).map((item) => ({
-          ...item,
-          readOnly: item.readOnly ?? false,
-        }));
+        const configured = config.workspaces ?? [];
         const client = new AsanaClient({ token, workspaces: configured });
-        const cacheBase =
-          process.env.XDG_CACHE_HOME || join(homedir(), '.cache');
         const data = await listWorkspaces({
           configured,
-          cachePath: join(cacheBase, 'asn', 'workspaces.json'),
+          cachePath: defaultWorkspaceCachePath(),
           client,
           refresh: commandOptions.refresh,
         });
@@ -138,15 +141,36 @@ export async function run(argv = process.argv): Promise<number> {
             'INTERNAL',
             error instanceof Error ? error.message : String(error),
           );
-    const tokenIndex = argv.indexOf('--token');
-    const secrets = [
-      process.env.ASANA_PAT ?? '',
-      tokenIndex >= 0 ? (argv[tokenIndex + 1] ?? '') : '',
-    ];
-    const rendered = redactSecrets(
-      JSON.stringify(errorEnvelope(cliError)),
-      secrets,
-    );
+    const optionValue = (name: string): string | undefined => {
+      const separateIndex = argv.lastIndexOf(name);
+      if (separateIndex >= 0) return argv[separateIndex + 1];
+      const prefix = `${name}=`;
+      for (let index = argv.length - 1; index >= 0; index -= 1) {
+        if (argv[index]?.startsWith(prefix))
+          return argv[index]?.slice(prefix.length);
+      }
+      return undefined;
+    };
+    let configToken: string | undefined;
+    try {
+      configToken = (
+        await readConfig(optionValue('--config') ?? defaultConfigPath())
+      ).token;
+    } catch {
+      // Preserve the original command error when the config cannot be reread.
+    }
+    const resolvedToken = resolveToken({
+      env: process.env,
+      configToken,
+      flagToken: optionValue('--token'),
+    });
+    const equalsTokens = argv
+      .filter((argument) => argument.startsWith('--token='))
+      .map((argument) => argument.slice('--token='.length));
+    const rendered = redactSecrets(JSON.stringify(errorEnvelope(cliError)), [
+      resolvedToken ?? '',
+      ...equalsTokens,
+    ]);
     process.stderr.write(`${rendered}\n`);
     return cliError.exitCode;
   }
