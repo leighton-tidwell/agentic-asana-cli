@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="data:," />
+    <meta
+      name="description"
+      content="The origin story of Agentic Asana CLI: a church-work constraint, a multi-workspace gap, and a spec-coded team of AI agents."
+    />
+    <title>Why Agentic Asana CLI Exists</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --paper: #f3f0e8;
+        --paper-deep: #e7e1d4;
+        --ink: #1d2823;
+        --muted: #5d6861;
+        --line: #c9c4b8;
+        --forest: #174d38;
+        --forest-dark: #103629;
+        --cream: #fffdf7;
+        --signal: #d98557;
+        --serif:
+          Charter, 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia,
+          serif;
+        --sans: Avenir, 'Avenir Next', Futura, 'Trebuchet MS', sans-serif;
+        --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+        --measure: 68rem;
+        --radius: 0.35rem;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      body {
+        margin: 0;
+        background: var(--paper);
+        color: var(--ink);
+        font-family: var(--serif);
+        font-size: clamp(1.05rem, 0.98rem + 0.28vw, 1.24rem);
+        line-height: 1.65;
+      }
+
+      a {
+        color: inherit;
+        text-underline-offset: 0.18em;
+        text-decoration-thickness: 0.08em;
+      }
+
+      a:hover {
+        color: var(--forest);
+      }
+
+      a:focus-visible {
+        outline: 3px solid var(--signal);
+        outline-offset: 4px;
+        border-radius: 2px;
+      }
+
+      .masthead,
+      main,
+      footer {
+        width: min(calc(100% - 2rem), var(--measure));
+        margin-inline: auto;
+      }
+
+      .masthead > *,
+      .hero > *,
+      .chapter > *,
+      .proof-grid > * {
+        min-width: 0;
+      }
+
+      .masthead {
+        min-height: 5rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        border-bottom: 1px solid var(--line);
+        font-family: var(--sans);
+        font-size: 0.78rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .wordmark {
+        font-weight: 800;
+        text-decoration: none;
+      }
+
+      .masthead nav {
+        display: flex;
+        gap: clamp(1rem, 3vw, 2.25rem);
+      }
+
+      .hero {
+        min-height: min(46rem, calc(100svh - 5rem));
+        display: grid;
+        grid-template-columns: minmax(0, 1.55fr) minmax(15rem, 0.75fr);
+        gap: clamp(3rem, 9vw, 8rem);
+        align-items: end;
+        padding-block: clamp(5rem, 13vw, 9rem) clamp(4rem, 9vw, 7rem);
+      }
+
+      .eyebrow,
+      .section-number,
+      .proof-label,
+      .role,
+      .kicker {
+        font-family: var(--mono);
+        font-size: 0.72rem;
+        font-weight: 700;
+        letter-spacing: 0.11em;
+        text-transform: uppercase;
+      }
+
+      .eyebrow {
+        color: var(--forest);
+        margin: 0 0 1.5rem;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        text-wrap: pretty;
+      }
+
+      h1 {
+        max-width: 13ch;
+        margin: 0;
+        font-size: clamp(3.35rem, 8vw, 7.7rem);
+        font-weight: 500;
+        letter-spacing: -0.055em;
+        line-height: 0.9;
+      }
+
+      .hero-aside {
+        border-top: 3px solid var(--ink);
+        padding-top: 1rem;
+      }
+
+      .hero-aside p {
+        margin: 0;
+        color: var(--muted);
+        font-size: clamp(1.08rem, 1rem + 0.35vw, 1.35rem);
+      }
+
+      .hero-aside strong {
+        color: var(--ink);
+        font-weight: 600;
+      }
+
+      .chapter {
+        display: grid;
+        grid-template-columns: minmax(7rem, 0.33fr) minmax(0, 1fr);
+        gap: clamp(2rem, 8vw, 7rem);
+        padding-block: clamp(4.5rem, 9vw, 8rem);
+        border-top: 1px solid var(--line);
+      }
+
+      .section-number {
+        color: var(--forest);
+        padding-top: 0.65rem;
+      }
+
+      .chapter-copy {
+        max-width: 46rem;
+      }
+
+      h2 {
+        margin: 0 0 1.5rem;
+        font-size: clamp(2.4rem, 5vw, 5rem);
+        font-weight: 500;
+        letter-spacing: -0.045em;
+        line-height: 0.98;
+      }
+
+      .lead {
+        margin: 0;
+        font-size: clamp(1.35rem, 1.15rem + 0.75vw, 2rem);
+        line-height: 1.42;
+      }
+
+      .chapter-copy > p + p {
+        margin-top: 1.5rem;
+      }
+
+      .problem-statement {
+        margin-top: 3.5rem;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        border-block: 1px solid var(--line);
+      }
+
+      .problem-statement p {
+        margin: 0;
+        padding: 1.2rem clamp(0.75rem, 2vw, 1.5rem);
+        font-family: var(--sans);
+        font-size: 0.9rem;
+        line-height: 1.45;
+      }
+
+      .problem-statement p + p {
+        border-left: 1px solid var(--line);
+      }
+
+      .problem-statement strong {
+        display: block;
+        margin-bottom: 0.35rem;
+        color: var(--forest);
+        font-family: var(--mono);
+        font-size: 0.68rem;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .move {
+        width: 100%;
+        background: var(--forest-dark);
+        color: var(--cream);
+      }
+
+      .move-inner {
+        width: min(calc(100% - 2rem), var(--measure));
+        margin-inline: auto;
+        padding-block: clamp(5rem, 11vw, 9rem);
+      }
+
+      .move .kicker {
+        color: #b9d9c7;
+      }
+
+      .move h2 {
+        max-width: 12ch;
+        margin-top: 1rem;
+      }
+
+      .move-intro {
+        max-width: 42rem;
+        margin: 2rem 0 0;
+        color: #d8e1da;
+        font-size: clamp(1.25rem, 1.1rem + 0.55vw, 1.7rem);
+      }
+
+      .agent-line {
+        list-style: none;
+        margin: clamp(3rem, 7vw, 5rem) 0 0;
+        padding: 0;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        counter-reset: agents;
+      }
+
+      .agent-line li {
+        position: relative;
+        min-height: 7rem;
+        padding: 2rem 1rem 0 0;
+        border-top: 1px solid #64806f;
+        counter-increment: agents;
+      }
+
+      .agent-line li::before {
+        content: counter(agents, decimal-leading-zero);
+        position: absolute;
+        top: -0.9rem;
+        left: 0;
+        padding-right: 0.55rem;
+        background: var(--forest-dark);
+        color: #b9d9c7;
+        font-family: var(--mono);
+        font-size: 0.72rem;
+      }
+
+      .role {
+        display: block;
+        margin-bottom: 0.45rem;
+        color: var(--cream);
+      }
+
+      .agent-line small {
+        display: block;
+        max-width: 14ch;
+        color: #b9c8be;
+        font-family: var(--sans);
+        font-size: 0.78rem;
+        line-height: 1.45;
+      }
+
+      .proof {
+        background: var(--cream);
+      }
+
+      .proof-grid {
+        display: grid;
+        grid-template-columns: 0.8fr 1.2fr;
+        gap: clamp(3rem, 8vw, 7rem);
+        padding-block: clamp(5rem, 11vw, 9rem);
+      }
+
+      .proof-heading {
+        align-self: start;
+        position: sticky;
+        top: 2rem;
+      }
+
+      .proof-heading h2 {
+        margin-top: 1rem;
+      }
+
+      .proof-list {
+        margin: 0;
+      }
+
+      .proof-row {
+        display: grid;
+        grid-template-columns: 8.5rem 1fr;
+        gap: 1.5rem;
+        padding-block: 1.8rem;
+        border-top: 1px solid var(--line);
+      }
+
+      .proof-row:last-child {
+        border-bottom: 1px solid var(--line);
+      }
+
+      .proof-label {
+        color: var(--forest);
+      }
+
+      .proof-row dd {
+        margin: 0;
+      }
+
+      .proof-row strong {
+        display: block;
+        margin-bottom: 0.4rem;
+        font-family: var(--sans);
+        font-size: 1.03rem;
+      }
+
+      .proof-row span {
+        color: var(--muted);
+      }
+
+      .lesson {
+        padding-block: clamp(5rem, 12vw, 10rem);
+        border-top: 1px solid var(--line);
+      }
+
+      .lesson h2 {
+        max-width: 10ch;
+      }
+
+      .lesson-lines {
+        margin-top: clamp(3rem, 7vw, 6rem);
+      }
+
+      blockquote {
+        margin: 0;
+        display: grid;
+        grid-template-columns: minmax(8rem, 0.28fr) 1fr;
+        gap: 2rem;
+        padding-block: 2rem;
+        border-top: 1px solid var(--line);
+      }
+
+      blockquote:last-child {
+        border-bottom: 1px solid var(--line);
+      }
+
+      blockquote .kicker {
+        color: var(--forest);
+      }
+
+      blockquote p {
+        margin: 0;
+        font-size: clamp(1.7rem, 1.25rem + 1.5vw, 3rem);
+        line-height: 1.14;
+      }
+
+      .cta {
+        margin-top: clamp(4rem, 10vw, 8rem);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 2rem;
+        padding: clamp(1.5rem, 4vw, 2.5rem);
+        background: var(--ink);
+        color: var(--cream);
+      }
+
+      .cta p {
+        margin: 0;
+        color: #d6dbd7;
+        font-family: var(--sans);
+        font-size: 0.92rem;
+      }
+
+      .button {
+        min-height: 3rem;
+        display: inline-flex;
+        flex: 0 0 auto;
+        align-items: center;
+        justify-content: center;
+        padding: 0.75rem 1.1rem;
+        background: var(--signal);
+        color: #20150f;
+        font-family: var(--sans);
+        font-size: 0.8rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-decoration: none;
+        text-transform: uppercase;
+      }
+
+      .button:hover {
+        background: #eca77e;
+        color: #20150f;
+      }
+
+      footer {
+        display: flex;
+        justify-content: space-between;
+        gap: 1rem;
+        padding-block: 2rem 3rem;
+        color: var(--muted);
+        font-family: var(--sans);
+        font-size: 0.75rem;
+      }
+
+      @media (max-width: 760px) {
+        .masthead nav {
+          display: none;
+        }
+
+        .hero,
+        .chapter,
+        .proof-grid {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .hero > *,
+        .chapter > *,
+        .proof-grid > * {
+          width: 100%;
+          max-width: 100%;
+        }
+
+        h1,
+        h2 {
+          max-width: 100%;
+          overflow-wrap: break-word;
+        }
+
+        .hero {
+          min-height: auto;
+          gap: 3.5rem;
+        }
+
+        .chapter {
+          gap: 1rem;
+        }
+
+        .problem-statement,
+        .agent-line {
+          grid-template-columns: 1fr;
+        }
+
+        .problem-statement p + p {
+          border-left: 0;
+          border-top: 1px solid var(--line);
+        }
+
+        .agent-line li {
+          min-height: 5.75rem;
+          padding-left: 3.5rem;
+          border-top: 0;
+          border-left: 1px solid #64806f;
+        }
+
+        .agent-line li::before {
+          top: 2rem;
+          left: -0.85rem;
+          padding: 0 0.35rem;
+        }
+
+        .proof-heading {
+          position: static;
+        }
+
+        .proof-row,
+        blockquote {
+          grid-template-columns: 1fr;
+          gap: 0.75rem;
+        }
+
+        .cta {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        footer {
+          flex-direction: column;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        html {
+          scroll-behavior: auto;
+        }
+      }
+
+      @media print {
+        body {
+          background: white;
+          font-size: 12pt;
+        }
+
+        .hero {
+          min-height: 0;
+        }
+
+        .move {
+          background: white;
+          color: var(--ink);
+          border-block: 2px solid var(--ink);
+        }
+
+        .move-intro,
+        .agent-line small,
+        .move .kicker {
+          color: var(--muted);
+        }
+
+        .agent-line li::before {
+          background: white;
+          color: var(--ink);
+        }
+
+        .role {
+          color: var(--ink);
+        }
+
+        .proof-heading {
+          position: static;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="masthead">
+      <a class="wordmark" href="../README.md">Agentic Asana CLI</a>
+      <nav aria-label="Story navigation">
+        <a href="#problem">The problem</a>
+        <a href="#move">The move</a>
+        <a href="#lessons">The lessons</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="hero" aria-labelledby="page-title">
+        <div>
+          <p class="eyebrow">An origin story · built in public</p>
+          <h1 id="page-title">A real need. A clear spec. Agents at work.</h1>
+        </div>
+        <aside class="hero-aside">
+          <p>
+            <strong>This did not begin as a software idea.</strong> It began
+            with church work that needed to happen across more than one Asana
+            workspace.
+          </p>
+        </aside>
+      </section>
+
+      <section class="chapter" id="problem" aria-labelledby="problem-title">
+        <p class="section-number">01 · The problem</p>
+        <div class="chapter-copy">
+          <h2 id="problem-title">
+            The available bridge stopped at one workspace.
+          </h2>
+          <p class="lead">
+            I wanted to use Asana for volunteer and organizational work at my
+            church. The existing Asana MCP server did not support the multiple
+            workspaces I needed—and no setup I tried made it work across them.
+          </p>
+          <p>
+            The constraint was ordinary. The gap was specific. An AI agent
+            needed a safe way to see and work across every workspace available
+            to one Personal Access Token, without treating all of them as
+            equally writable.
+          </p>
+          <div class="problem-statement" aria-label="The design constraints">
+            <p>
+              <strong>Input</strong>One PAT, not a hand-built workspace list.
+            </p>
+            <p>
+              <strong>Reach</strong>The whole supported Asana API, not a subset.
+            </p>
+            <p>
+              <strong>Safety</strong>Read-only policy that holds per workspace.
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <section class="move" id="move" aria-labelledby="move-title">
+      <div class="move-inner">
+        <p class="kicker">02 · The move</p>
+        <h2 id="move-title">Specify the outcome. Let the team run.</h2>
+        <p class="move-intro">
+          Instead of hand-coding the tool, I invested in the brief, the
+          constraints, and the acceptance criteria—then set a spec-coded team of
+          AI agents loose on a shared kanban board.
+        </p>
+        <ol class="agent-line" aria-label="Agent development sequence">
+          <li>
+            <span class="role">Plan</span>
+            <small>Turn the need into a testable system.</small>
+          </li>
+          <li>
+            <span class="role">Execute</span>
+            <small>Build independent slices in parallel.</small>
+          </li>
+          <li>
+            <span class="role">Audit</span>
+            <small>Attack assumptions and prove findings.</small>
+          </li>
+          <li>
+            <span class="role">Verify</span>
+            <small>Exercise the integrated behavior.</small>
+          </li>
+          <li>
+            <span class="role">Release</span>
+            <small>Package, attest, and publish the result.</small>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <main>
+      <section class="proof" aria-labelledby="proof-title">
+        <div class="proof-grid">
+          <header class="proof-heading">
+            <p class="proof-label">03 · What shipped</p>
+            <h2 id="proof-title">Not a demo. A working tool.</h2>
+          </header>
+          <dl class="proof-list">
+            <div class="proof-row">
+              <dt class="proof-label">Coverage</dt>
+              <dd>
+                <strong>249 / 249 API operations</strong>
+                <span
+                  >One-to-one command coverage from a pinned Asana OpenAPI
+                  specification.</span
+                >
+              </dd>
+            </div>
+            <div class="proof-row">
+              <dt class="proof-label">Discovery</dt>
+              <dd>
+                <strong>Automatic multi-workspace discovery</strong>
+                <span
+                  >The CLI discovers every workspace available to the PAT—no
+                  static inventory required.</span
+                >
+              </dd>
+            </div>
+            <div class="proof-row">
+              <dt class="proof-label">Guardrail</dt>
+              <dd>
+                <strong>Per-workspace read-only protection</strong>
+                <span
+                  >Mutations are stopped before they reach a protected
+                  workspace, with ownership resolved from Asana.</span
+                >
+              </dd>
+            </div>
+            <div class="proof-row">
+              <dt class="proof-label">Audit</dt>
+              <dd>
+                <strong>PoC-verified security fixes</strong>
+                <span
+                  >A dedicated security lane reproduced findings, hardened the
+                  system, and returned the integrated tree for
+                  verification.</span
+                >
+              </dd>
+            </div>
+            <div class="proof-row">
+              <dt class="proof-label">Distribution</dt>
+              <dd>
+                <strong>CLI, Claude plugin + Vercel skills</strong>
+                <span
+                  >An attested public release, packaged for direct use and for
+                  agent workflows.</span
+                >
+              </dd>
+            </div>
+          </dl>
+        </div>
+      </section>
+
+      <section class="lesson" id="lessons" aria-labelledby="lesson-title">
+        <p class="section-number">04 · The lessons</p>
+        <h2 id="lesson-title">Agency follows clarity.</h2>
+        <div class="lesson-lines">
+          <blockquote>
+            <span class="kicker">Trust the run</span>
+            <p>Let your hands go and let the agents run.</p>
+          </blockquote>
+          <blockquote>
+            <span class="kicker">Earn the result</span>
+            <p>More time spent on setup and spec means better results.</p>
+          </blockquote>
+        </div>
+        <div class="cta">
+          <p>
+            Install the CLI, inspect the command catalog, and start with a PAT.
+          </p>
+          <a class="button" href="../README.md#install-in-one-command"
+            >Read the install guide</a
+          >
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Agentic Asana CLI · an agent-first interface to Asana</span>
+      <a href="https://github.com/leighton-tidwell/agentic-asana-cli"
+        >View the public repository</a
+      >
+    </footer>
+  </body>
+</html>

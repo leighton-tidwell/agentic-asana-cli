@@ -4,6 +4,10 @@
 
 A JSON-first Asana CLI designed for coding agents. It discovers workspaces from a Personal Access Token (PAT), exposes the Asana REST API as commands, supports attachments, and blocks mutations to workspaces marked read-only.
 
+## Why this exists
+
+This project began with a practical need: using Asana for church work across multiple workspaces when the existing MCP option could not. Rather than hand-code around the gap, the author wrote the spec and let a team of AI agents plan, implement, audit, verify, and release a CLI with complete API coverage and per-workspace safety; read [the full origin story](docs/story.html).
+
 ## Install in one command
 
 ```bash
