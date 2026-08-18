@@ -23,10 +23,17 @@ test('token precedence is environment then config then flag', () => {
     'env-token',
   );
   assert.equal(
-    resolveToken({ configToken: 'config-token', flagToken: 'flag-token' }),
+    resolveToken({
+      env: {},
+      configToken: 'config-token',
+      flagToken: 'flag-token',
+    }),
     'config-token',
   );
-  assert.equal(resolveToken({ flagToken: 'flag-token' }), 'flag-token');
+  assert.equal(
+    resolveToken({ env: {}, flagToken: 'flag-token' }),
+    'flag-token',
+  );
 });
 
 test('redactSecrets removes every occurrence of the active token', () => {
