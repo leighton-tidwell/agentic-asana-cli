@@ -4,6 +4,12 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/en/1.1.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-08-18
+
+### Fixed
+
+- **--dry-run webhook allowlist bypass (SEC-4 follow-up, low/medium):** `--dry-run` previously skipped the webhook target-origin allowlist check, so previews of unlisted-target webhook creation incorrectly exited 0 instead of exit 4 (`READONLY_BLOCKED`). Dry-run never contacts Asana so there was no live exposure, but the preview gave a false positive. The allowlist is now enforced identically in dry-run and live modes. Affected version: v0.1.3.
+
 ## [0.1.3] - 2026-08-18
 
 ### Fixed

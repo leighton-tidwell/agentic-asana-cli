@@ -96,6 +96,7 @@ touch `docs/`, the workflow file itself, `package.json`, `package-lock.json`, th
 generator script, or the command manifest — and on manual dispatch from the Actions tab.
 
 **Pipeline steps:**
+
 1. `npm ci` — install dependencies.
 2. `npm run docs:build` — builds the VitePress site (including llms.txt generation and
    sitemap.xml).
