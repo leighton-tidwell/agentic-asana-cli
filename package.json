@@ -32,8 +32,9 @@
     "lint": "eslint src tests codegen scripts/*.ts",
     "format:check": "prettier --check .",
     "test:packaging": "node scripts/validate-packaging.mjs",
+    "docs:generate-commands": "node scripts/generate-commands-doc.mjs && prettier --write docs/site/commands/index.md",
     "docs:dev": "vitepress dev docs/site",
-    "docs:build": "vitepress build docs/site",
+    "docs:build": "npm run docs:generate-commands && vitepress build docs/site",
     "docs:preview": "vitepress preview docs/site"
   },
   "dependencies": {

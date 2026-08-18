@@ -53,11 +53,17 @@ docs/
     .vitepress/
       config.mts     # site config: nav, sidebar, sitemap, SEO head tags
     index.md         # landing page
-    usage/index.md         # usage guide (stub)
-    commands/index.md      # commands reference (stub)
-    configuration/index.md # configuration reference (stub)
+    usage/index.md         # usage guide
+    commands/index.md      # commands reference (generated from gen/manifest.json)
+    configuration/index.md # configuration reference
     public/           # static assets (logo, favicon)
 ```
+
+The commands page is generated: `scripts/generate-commands-doc.mjs` reads the pinned Asana
+OpenAPI command manifest (`gen/manifest.json`, the same source `asn schema` reads from) and
+renders every resource/operation/parameter into `docs/site/commands/index.md`. Run it directly
+with `npm run docs:generate-commands`, or let `npm run docs:build` run it automatically before
+building the site so the page never drifts from the manifest.
 
 ## Running locally
 
