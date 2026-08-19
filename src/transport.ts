@@ -125,6 +125,7 @@ const CONTAINER_LINKS: Record<string, ContainerLink[]> = {
     { field: 'portfolio', collection: 'portfolios' },
   ],
   stories: [
+    { field: 'target', collection: 'tasks' },
     { field: 'task', collection: 'tasks' },
     { field: 'project', collection: 'projects' },
   ],
@@ -132,7 +133,7 @@ const CONTAINER_LINKS: Record<string, ContainerLink[]> = {
   goal_relationships: [{ field: 'supported_goal', collection: 'goals' }],
   teams: [{ field: 'organization', collection: 'workspaces' }],
   project_templates: [{ field: 'team', collection: 'teams' }],
-  rates: [{ field: 'resource', collection: 'tasks' }],
+  rates: [{ field: 'parent', collection: 'projects' }],
 };
 
 function containerLinksFor(path: string): ContainerLink[] {
