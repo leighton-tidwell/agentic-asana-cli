@@ -330,14 +330,27 @@ export class AsanaClient {
   private resolveWorkspace(
     path: string,
     depth = 0,
+    visiting: ReadonlySet<string> = new Set(),
   ): Promise<string | undefined> {
+    // A path already on the current resolution stack means the container
+    // chain cycles back on itself. Bail out immediately instead of asking
+    // the cache: the cache entry for `path` (if any) is this very in-flight
+    // promise, and awaiting it here would make it depend on its own
+    // settlement — a deadlock that never resolves. Cycle detection must not
+    // depend on the depth cap or on cache state.
+    if (visiting.has(path)) {
+      return Promise.resolve(undefined);
+    }
     const cached = this.workspaceCache.get(path);
     if (cached) return cached;
     if (depth >= 4) {
-      const resolved = Promise.resolve<string | undefined>(undefined);
-      this.workspaceCache.set(path, resolved);
-      return resolved;
+      // Do NOT cache this negative result: it's an artifact of the depth
+      // budget for *this* chain, not a fact about `path`. A later direct
+      // lookup of `path` at depth 0 must still get a real resolution.
+      return Promise.resolve(undefined);
     }
+    const nextVisiting = new Set(visiting);
+    nextVisiting.add(path);
     const links = containerLinksFor(path);
     const optFields = path.startsWith('/attachments/')
       ? 'parent.gid,parent.resource_type'
@@ -377,6 +390,7 @@ export class AsanaClient {
           return this.resolveWorkspace(
             `/${collection}/${encodeURIComponent(parent.gid)}`,
             depth + 1,
+            nextVisiting,
           );
         }
         for (const link of links) {
@@ -389,6 +403,7 @@ export class AsanaClient {
             return this.resolveWorkspace(
               `/${link.collection}/${encodeURIComponent(gid)}`,
               depth + 1,
+              nextVisiting,
             );
           }
         }

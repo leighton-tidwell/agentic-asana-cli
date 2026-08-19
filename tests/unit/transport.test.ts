@@ -880,6 +880,166 @@ test('link resolution stops at the depth budget', async () => {
   );
 });
 
+test('cyclic parent chain settles as READONLY_UNRESOLVED instead of hanging', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '2222222222222222', readOnly: true }],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      if (url.includes('/tasks/A')) {
+        return Response.json({
+          data: { gid: 'A', parent: { gid: 'B', resource_type: 'task' } },
+        });
+      }
+      return Response.json({
+        data: { gid: 'B', parent: { gid: 'A', resource_type: 'task' } },
+      });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'PUT',
+      path: '/tasks/A',
+      workspaceLookupPath: '/tasks/A',
+      body: { data: {} },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.ok(!calls.includes('PUT'), 'no mutating fetch should have fired');
+});
+
+test('cyclic CONTAINER_LINKS chain (section <-> project) settles instead of hanging', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '2222222222222222', readOnly: true }],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      if (url.includes('/sections/')) {
+        return Response.json({
+          data: { gid: 's', project: { gid: 'p' } },
+        });
+      }
+      if (url.includes('/projects/')) {
+        return Response.json({
+          data: {
+            gid: 'p',
+            parent: { gid: 's', resource_type: 'section' },
+          },
+        });
+      }
+      return Response.json({ data: {} });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'PUT',
+      path: '/sections/s',
+      workspaceLookupPath: '/sections/s',
+      body: { data: {} },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.ok(!calls.includes('PUT'), 'no mutating fetch should have fired');
+});
+
+test('depth-capped resolution does not poison the cache for a later direct lookup', async () => {
+  const calls: string[] = [];
+  let counter = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '2222222222222222', readOnly: true }],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      if (method !== 'GET') return Response.json({ data: {} });
+      if (url.includes('/projects/deep-target')) {
+        return Response.json({
+          data: { workspace: { gid: '2222222222222222' } },
+        });
+      }
+      counter += 1;
+      // A long parent chain that eventually reaches /projects/deep-target
+      // only past the depth budget on the first (indirect) request.
+      if (counter === 1) {
+        return Response.json({
+          data: { gid: 'p1', parent: { gid: 'p2', resource_type: 'task' } },
+        });
+      }
+      if (counter === 2) {
+        return Response.json({
+          data: { gid: 'p2', parent: { gid: 'p3', resource_type: 'task' } },
+        });
+      }
+      if (counter === 3) {
+        return Response.json({
+          data: { gid: 'p3', parent: { gid: 'p4', resource_type: 'task' } },
+        });
+      }
+      return Response.json({
+        data: {
+          gid: 'p4',
+          parent: { gid: 'deep-target', resource_type: 'project' },
+        },
+      });
+    },
+  });
+
+  // First request: chain hits the depth cap before reaching deep-target's
+  // own workspace lookup.
+  await assert.rejects(
+    client.request({
+      method: 'PUT',
+      path: '/tasks/p1',
+      workspaceLookupPath: '/tasks/p1',
+      body: { data: {} },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+      return true;
+    },
+  );
+
+  const getsAfterFirstRequest = calls.filter((call) => call === 'GET').length;
+
+  // Second request: direct PUT against the depth-capped path must perform
+  // a real lookup, not short-circuit to READONLY_UNRESOLVED with 0 fetches.
+  await assert.rejects(
+    client.request({
+      method: 'PUT',
+      path: '/projects/deep-target',
+      workspaceLookupPath: '/projects/deep-target',
+      body: { data: {} },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      return true;
+    },
+  );
+
+  const getsAfterSecondRequest = calls.filter((call) => call === 'GET').length;
+  assert.ok(
+    getsAfterSecondRequest > getsAfterFirstRequest,
+    'expected the direct lookup to issue a real fetch instead of hitting a poisoned cache entry',
+  );
+});
+
 test('pagination follows next_page offsets and honors a result limit', async () => {
   const urls: string[] = [];
   const pages = [
