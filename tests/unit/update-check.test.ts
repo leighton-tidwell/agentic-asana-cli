@@ -208,6 +208,20 @@ test('suppresses the notice during --help', async () => {
   assert.equal(deps._writes.length, 0);
 });
 
+test('does NOT suppress the notice for a subcommand flag that merely contains --version (narrowed to the root invocation)', async () => {
+  let fetchCalls = 0;
+  const deps = makeDeps({
+    argv: ['tasks', 'create-task', '--field', '--version'],
+    fetchLatest: async () => {
+      fetchCalls += 1;
+      return '0.2.0';
+    },
+  });
+  await updateCheckModule.maybeNotifyUpdate(deps);
+  assert.equal(fetchCalls, 1);
+  assert.equal(deps._writes.length, 1);
+});
+
 test('a thrown error anywhere in the check path is swallowed silently', async () => {
   const deps = makeDeps({
     readCache: async () => {

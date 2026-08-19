@@ -26,9 +26,29 @@ import {
   fetchLatestRelease,
   realExecutablePath,
   runUpgrade,
+  type RunResult,
+  type UpgradeContext,
 } from './upgrade.js';
 
 const CLI_VERSION = '0.1.4';
+
+/**
+ * Overrides for the `upgrade` command's side-effecting dependencies (network
+ * fetch, filesystem, and the npm install subprocess). Production code
+ * (`run()`) calls `createProgram()` with no overrides, so real dependencies
+ * are used. Tests pass overrides to exercise the real argv-parsing path
+ * (commander -> action handler -> runUpgrade) without touching the network
+ * or installing anything.
+ */
+export interface UpgradeDepsOverride {
+  env?: Record<string, string | undefined>;
+  currentVersion?: string;
+  realPath?: string;
+  fetchLatest?: UpgradeContext['fetchLatest'];
+  fileExists?: (path: string) => boolean;
+  readFile?: (path: string) => string;
+  runner?: (command: string, args: string[]) => Promise<RunResult>;
+}
 
 async function fetchLatestVersion(): Promise<string> {
   const response = await fetch(
@@ -56,7 +76,9 @@ async function checkForUpdate(argv: string[]): Promise<void> {
   });
 }
 
-export function createProgram(): Command {
+export function createProgram(
+  upgradeDepsOverride: UpgradeDepsOverride = {},
+): Command {
   const program = new Command()
     .name('asn')
     .description('Agent-first Asana CLI')
@@ -99,41 +121,56 @@ export function createProgram(): Command {
     .alias('update')
     .description('Upgrade this CLI to the latest published version')
     .option('--check', 'report versions without changing anything')
-    .option('--version <x.y.z>', 'pin a specific target version')
+    .option('--target <x.y.z>', 'pin a specific target version')
     .option('--yes', 'install without an interactive confirmation')
     .action(
       async (commandOptions: {
         check?: boolean;
-        version?: string;
+        target?: string;
         yes?: boolean;
       }) => {
         const argv1 = process.argv[1];
-        const outcome = await runUpgrade(commandOptions, {
-          env: process.env,
-          currentVersion: CLI_VERSION,
-          realPath: realExecutablePath(argv1),
-          fetchLatest: () => fetchLatestRelease(globalThis.fetch),
-          fileExists: (path: string) => existsSync(path),
-          readFile: (path: string) => readFileSync(path, 'utf8'),
-          runner: async (command: string, args: string[]) => {
-            const { spawn } = await import('node:child_process');
-            return new Promise((resolvePromise, rejectPromise) => {
-              const child = spawn(command, args, { stdio: 'pipe' });
-              let stdout = '';
-              let stderr = '';
-              child.stdout.on('data', (chunk: Buffer) => {
-                stdout += chunk.toString();
-              });
-              child.stderr.on('data', (chunk: Buffer) => {
-                stderr += chunk.toString();
-              });
-              child.on('error', rejectPromise);
-              child.on('close', (code) => {
-                resolvePromise({ code: code ?? 1, stdout, stderr });
-              });
-            });
+        const outcome = await runUpgrade(
+          {
+            check: commandOptions.check,
+            version: commandOptions.target,
+            yes: commandOptions.yes,
           },
-        });
+          {
+            env: upgradeDepsOverride.env ?? process.env,
+            currentVersion: upgradeDepsOverride.currentVersion ?? CLI_VERSION,
+            realPath: upgradeDepsOverride.realPath ?? realExecutablePath(argv1),
+            fetchLatest:
+              upgradeDepsOverride.fetchLatest ??
+              (() => fetchLatestRelease(globalThis.fetch)),
+            fileExists:
+              upgradeDepsOverride.fileExists ??
+              ((path: string) => existsSync(path)),
+            readFile:
+              upgradeDepsOverride.readFile ??
+              ((path: string) => readFileSync(path, 'utf8')),
+            runner:
+              upgradeDepsOverride.runner ??
+              (async (command: string, args: string[]) => {
+                const { spawn } = await import('node:child_process');
+                return new Promise((resolvePromise, rejectPromise) => {
+                  const child = spawn(command, args, { stdio: 'pipe' });
+                  let stdout = '';
+                  let stderr = '';
+                  child.stdout.on('data', (chunk: Buffer) => {
+                    stdout += chunk.toString();
+                  });
+                  child.stderr.on('data', (chunk: Buffer) => {
+                    stderr += chunk.toString();
+                  });
+                  child.on('error', rejectPromise);
+                  child.on('close', (code) => {
+                    resolvePromise({ code: code ?? 1, stdout, stderr });
+                  });
+                });
+              }),
+          },
+        );
         process.stdout.write(`${outcome.message}\n`);
         process.exitCode = outcome.exitCode;
       },

@@ -58,7 +58,13 @@ function isSuppressed(
   if (!isTTY) return true;
   const firstArg = argv.find((value) => !value.startsWith('-'));
   if (firstArg === 'upgrade' || firstArg === 'update') return true;
-  if (argv.includes('--version') || argv.includes('--help')) return true;
+  // Root-only: `asn --version`/`asn -V` (and `--help`) short-circuit before
+  // any subcommand runs, so the drift notice would never be seen anyway.
+  // Scoped to argv[0] so a subcommand flag of the same name (there are none
+  // today; see `upgrade --target`, which replaced the former colliding
+  // `upgrade --version`) is never mistaken for the root flag.
+  if (argv[0] === '--version' || argv[0] === '-V' || argv[0] === '--help')
+    return true;
   return false;
 }
 
