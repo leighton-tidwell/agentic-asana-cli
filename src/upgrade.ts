@@ -112,7 +112,10 @@ export interface UpgradeOutcome {
   message: string;
 }
 
-const CHANNEL_GUIDANCE: Record<Exclude<InstallChannel, 'npm-global'>, string> = {
+const CHANNEL_GUIDANCE: Record<
+  Exclude<InstallChannel, 'npm-global'>,
+  string
+> = {
   source:
     'this is a source checkout; run `git pull` and `npm install` to update',
   unknown:
@@ -165,11 +168,7 @@ export async function runUpgrade(
   }
 
   const tarballUrl = `https://github.com/leighton-tidwell/agentic-asana-cli/releases/download/v${targetVersion}/agentic-asana-asn.tgz`;
-  const result = await context.runner('npm', [
-    'install',
-    '-g',
-    tarballUrl,
-  ]);
+  const result = await context.runner('npm', ['install', '-g', tarballUrl]);
 
   if (result.code !== 0) {
     if (/EACCES|permission denied/i.test(result.stderr)) {

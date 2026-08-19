@@ -14,17 +14,13 @@ test('detectInstallChannel honours an explicit env override', () => {
 test('detectInstallChannel recognizes a global npm install path', () => {
   const channel = upgradeModule.detectInstallChannel({
     env: {},
-    realPath:
-      '/usr/local/lib/node_modules/@agentic-asana/asn/dist/main.js',
+    realPath: '/usr/local/lib/node_modules/@agentic-asana/asn/dist/main.js',
   });
   assert.equal(channel, 'npm-global');
 });
 
 test('detectInstallChannel recognizes a source checkout', () => {
-  const files = new Set([
-    '/repo/package.json',
-    '/repo/src',
-  ]);
+  const files = new Set(['/repo/package.json', '/repo/src']);
   const channel = upgradeModule.detectInstallChannel({
     env: {},
     realPath: '/repo/src/main.ts',
@@ -58,10 +54,7 @@ test('fetchLatestRelease reports an actionable error when the registry has no ve
     upgradeModule.fetchLatestRelease(async () => Response.json({})),
     (error: unknown) => {
       assert.equal((error as { code: string }).code, 'NOT_FOUND');
-      assert.match(
-        (error as Error).message,
-        /no published versions/,
-      );
+      assert.match((error as Error).message, /no published versions/);
       return true;
     },
   );
@@ -198,8 +191,7 @@ test('runUpgrade surfaces an actionable message on permission denied', async () 
       {
         env: {},
         currentVersion: '0.1.4',
-        realPath:
-          '/usr/local/lib/node_modules/@agentic-asana/asn/dist/main.js',
+        realPath: '/usr/local/lib/node_modules/@agentic-asana/asn/dist/main.js',
         fetchLatest: async () => ({ version: '0.1.5' }),
         runner: async () => ({
           code: 1,
