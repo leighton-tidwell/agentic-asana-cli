@@ -29,21 +29,71 @@ jobs:
           test "$GITHUB_REF_NAME" = "v$(node -p "require('./package.json').version")"
       - name: Build installable npm artifact
         run: mkdir -p release && npm pack --pack-destination release
+      - name: Verify packed artifact version matches the release tag
+        run: |
+          tarball="$(ls release/*.tgz)"
+          packed_version="$(tar -xOz -f "$tarball" package/package.json | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>console.log(JSON.parse(d).version))")"
+          test "v$packed_version" = "$GITHUB_REF_NAME" || {
+            echo "packed artifact version $packed_version != tag $GITHUB_REF_NAME"
+            exit 1
+          }
       - name: Probe packed CLI entrypoint
         run: |
           npm install --prefix "$RUNNER_TEMP/asn-install" --global ./release/*.tgz
-          test "$("$RUNNER_TEMP/asn-install/bin/asn" --version)" = "$(node -p "require('./package.json').version")"
+          # The version baked into the shipped code must equal the release tag,
+          # not just package.json (tag == package.json is asserted above).
+          test "$("$RUNNER_TEMP/asn-install/bin/asn" --version)" = "${GITHUB_REF_NAME#v}"
       - name: Normalize artifact name
         run: mv release/*.tgz release/agentic-asana-asn.tgz
+      - name: Generate checksum manifest
+        run: |
+          cd release
+          sha256sum agentic-asana-asn.tgz > SHA256SUMS
+          cat SHA256SUMS
       - uses: actions/attest-build-provenance@8beda2b7ed98355c0e97c0a63bec38ae472e66c4 # v2
         with:
           subject-path: release/agentic-asana-asn.tgz
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: agentic-asana-asn-${{ github.ref_name }}
-          path: release/agentic-asana-asn.tgz
+          path: |
+            release/agentic-asana-asn.tgz
+            release/SHA256SUMS
       - name: Publish GitHub release
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           generate_release_notes: true
-          files: release/agentic-asana-asn.tgz
+          files: |
+            release/agentic-asana-asn.tgz
+            release/SHA256SUMS
+      - name: Post-release operational probe
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="${{ github.repository }}"
+          expected="${GITHUB_REF_NAME#v}"
+
+          # 1. The exact endpoint the CLI's update check queries must resolve to this tag.
+          latest_tag="$(gh api "repos/$repo/releases/latest" --jq .tag_name)"
+          test "$latest_tag" = "$GITHUB_REF_NAME" || {
+            echo "releases/latest points at $latest_tag, expected $GITHUB_REF_NAME"
+            exit 1
+          }
+
+          # 2. The deterministic asset URL the upgrade command downloads must exist
+          #    and round-trip the published checksum.
+          base="https://github.com/$repo/releases/download/$GITHUB_REF_NAME"
+          work="$(mktemp -d)"
+          curl -fsSL "$base/agentic-asana-asn.tgz" -o "$work/agentic-asana-asn.tgz"
+          curl -fsSL "$base/SHA256SUMS" -o "$work/SHA256SUMS"
+          (cd "$work" && sha256sum --check SHA256SUMS)
+
+          # 3. The downloaded tarball must install and report the tagged version.
+          npm install --prefix "$RUNNER_TEMP/asn-postcheck" --global "$work/agentic-asana-asn.tgz"
+          installed="$("$RUNNER_TEMP/asn-postcheck/bin/asn" --version)"
+          test "$installed" = "$expected" || {
+            echo "installed --version $installed != tag $expected"
+            exit 1
+          }
+          echo "post-release probe OK: $GITHUB_REF_NAME visible and downloadable"
