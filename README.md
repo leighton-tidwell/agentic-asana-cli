@@ -16,6 +16,28 @@ npm install -g https://github.com/leighton-tidwell/agentic-asana-cli/releases/la
 
 Node.js 20 or newer is required. For a pinned release, replace `latest` with `download/vX.Y.Z`.
 
+## Upgrading
+
+If you installed with the `npm install -g` command above, upgrade in place with:
+
+```bash
+asn upgrade
+```
+
+`update` is an alias for the same command. Useful flags:
+
+- `--check` — report the current and latest versions without changing anything.
+- `--target <x.y.z>` — pin a specific version instead of the latest release.
+- `--yes` — install without an interactive confirmation.
+
+`asn` also prints a single-line startup notice on stderr when a newer version is available
+(checked at most every 24h); see [Upgrading](https://leighton-tidwell.github.io/agentic-asana-cli/upgrading/)
+on the docs site for the full opt-out list.
+
+If you're running from a source checkout instead, `asn upgrade` won't self-update — it detects
+the checkout and tells you to run `git pull` and `npm install` instead, which is what actually
+updates a source install.
+
 ## Quickstart: only a PAT
 
 Create a PAT in Asana, export it without putting it in command arguments, then let `asn` discover your workspaces:

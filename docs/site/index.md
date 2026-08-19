@@ -14,6 +14,7 @@ and blocks mutations to workspaces marked read-only.
 - [Usage](/usage/) — installation, authentication, and everyday commands.
 - [Commands](/commands/) — the full command reference.
 - [Configuration](/configuration/) — config file, environment variables, and workspace guards.
+- [Upgrading](/upgrading/) — the `asn upgrade` command and the startup update notice.
 
 ## Quickstart
 

@@ -212,3 +212,4 @@ exit: 5
 - [Commands](/commands/) — the full generated command reference.
 - [Configuration](/configuration/) — config file format, environment variables, and read-only
   workspace guards.
+- [Upgrading](/upgrading/) — the `asn upgrade` command and the startup update notice.
