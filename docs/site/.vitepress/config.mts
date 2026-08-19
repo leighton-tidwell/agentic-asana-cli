@@ -53,6 +53,7 @@ export default defineConfig({
       { text: 'Usage', link: '/usage/' },
       { text: 'Commands', link: '/commands/' },
       { text: 'Configuration', link: '/configuration/' },
+      { text: 'Upgrading', link: '/upgrading/' },
       {
         text: 'GitHub',
         link: 'https://github.com/leighton-tidwell/agentic-asana-cli',
@@ -67,6 +68,7 @@ export default defineConfig({
           { text: 'Usage', link: '/usage/' },
           { text: 'Commands', link: '/commands/' },
           { text: 'Configuration', link: '/configuration/' },
+          { text: 'Upgrading', link: '/upgrading/' },
         ],
       },
     ],
