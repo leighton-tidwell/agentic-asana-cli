@@ -665,6 +665,381 @@ test('attachment resolver follows its parent task to the owning workspace', asyn
   ]);
 });
 
+test('section mutation in a writable workspace succeeds while another workspace is read-only', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [
+      { gid: '1111111111111111', readOnly: false },
+      { gid: '2222222222222222', readOnly: true },
+    ],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      if (method !== 'GET') return Response.json({ data: { gid: 'sec-1' } });
+      if (url.includes('/sections/')) {
+        return Response.json({
+          data: { gid: 'sec-1', project: { gid: 'proj-1' } },
+        });
+      }
+      return Response.json({
+        data: { workspace: { gid: '1111111111111111' } },
+      });
+    },
+  });
+
+  const result = await client.request({
+    method: 'PUT',
+    path: '/sections/sec-1',
+    workspaceLookupPath: '/sections/sec-1',
+    body: { data: { name: 'Renamed' } },
+  });
+
+  assert.deepEqual(result, { data: { gid: 'sec-1' } });
+  assert.deepEqual(calls, ['GET', 'GET', 'PUT']);
+});
+
+test('section resolver hops section → project → workspace', async () => {
+  const urls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [
+      { gid: '1111111111111111', readOnly: false },
+      { gid: '2222222222222222', readOnly: true },
+    ],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      if (method === 'GET') urls.push(url);
+      if (url.includes('/sections/')) {
+        return Response.json({
+          data: { gid: 'sec-1', project: { gid: 'proj-1' } },
+        });
+      }
+      if (url.includes('/projects/')) {
+        return Response.json({
+          data: { workspace: { gid: '1111111111111111' } },
+        });
+      }
+      return Response.json({ data: { gid: 'sec-1' } });
+    },
+  });
+
+  await client.request({
+    method: 'PUT',
+    path: '/sections/sec-1',
+    workspaceLookupPath: '/sections/sec-1',
+    body: { data: { name: 'Renamed' } },
+  });
+
+  assert.deepEqual(urls, [
+    'https://app.asana.com/api/1.0/sections/sec-1?opt_fields=workspace.gid,parent.gid,parent.resource_type,project.gid',
+    'https://app.asana.com/api/1.0/projects/proj-1?opt_fields=workspace.gid,parent.gid,parent.resource_type',
+  ]);
+});
+
+test('section mutation targeting a read-only workspace is still blocked', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [
+      { gid: '1111111111111111', readOnly: false },
+      { gid: '2222222222222222', readOnly: true },
+    ],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      if (method !== 'GET') return Response.json({ data: { gid: 'sec-1' } });
+      if (url.includes('/sections/')) {
+        return Response.json({
+          data: { gid: 'sec-1', project: { gid: 'proj-1' } },
+        });
+      }
+      return Response.json({
+        data: { workspace: { gid: '2222222222222222' } },
+      });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'PUT',
+      path: '/sections/sec-1',
+      workspaceLookupPath: '/sections/sec-1',
+      body: { data: { name: 'Renamed' } },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.deepEqual(calls, ['GET', 'GET']);
+});
+
+test('section resolution is cached across repeated requests', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '2222222222222222', readOnly: true }],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      if (method === 'GET') calls.push(url);
+      if (url.includes('/sections/')) {
+        return Response.json({
+          data: { gid: 'sec-1', project: { gid: 'proj-1' } },
+        });
+      }
+      return Response.json({
+        data: { workspace: { gid: '2222222222222222' } },
+      });
+    },
+  });
+
+  for (let i = 0; i < 2; i += 1) {
+    await assert.rejects(
+      client.request({
+        method: 'PUT',
+        path: '/sections/sec-1',
+        workspaceLookupPath: '/sections/sec-1',
+        body: { data: { name: 'Renamed' } },
+      }),
+      (error: unknown) => {
+        assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+        return true;
+      },
+    );
+  }
+  assert.equal(calls.length, 2);
+});
+
+test('resource with no resolvable container still fails closed', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '2222222222222222', readOnly: true }],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      return Response.json({ data: { gid: 'x' } });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'PUT',
+      path: '/memberships/x',
+      workspaceLookupPath: '/memberships/x',
+      body: { data: {} },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.deepEqual(calls, ['GET']);
+});
+
+test('link resolution stops at the depth budget', async () => {
+  const calls: string[] = [];
+  let counter = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '2222222222222222', readOnly: true }],
+    fetch: async () => {
+      calls.push('GET');
+      counter += 1;
+      return Response.json({
+        data: {
+          gid: `p${counter}`,
+          parent: { gid: `p${counter + 1}`, resource_type: 'task' },
+        },
+      });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'PUT',
+      path: '/sections/a',
+      workspaceLookupPath: '/sections/a',
+      body: { data: {} },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+      return true;
+    },
+  );
+  assert.ok(
+    calls.length <= 5,
+    `expected a bounded number of GETs, got ${calls.length}`,
+  );
+});
+
+test('cyclic parent chain settles as READONLY_UNRESOLVED instead of hanging', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '2222222222222222', readOnly: true }],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      if (url.includes('/tasks/A')) {
+        return Response.json({
+          data: { gid: 'A', parent: { gid: 'B', resource_type: 'task' } },
+        });
+      }
+      return Response.json({
+        data: { gid: 'B', parent: { gid: 'A', resource_type: 'task' } },
+      });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'PUT',
+      path: '/tasks/A',
+      workspaceLookupPath: '/tasks/A',
+      body: { data: {} },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.ok(!calls.includes('PUT'), 'no mutating fetch should have fired');
+});
+
+test('cyclic CONTAINER_LINKS chain (section <-> project) settles instead of hanging', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '2222222222222222', readOnly: true }],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      if (url.includes('/sections/')) {
+        return Response.json({
+          data: { gid: 's', project: { gid: 'p' } },
+        });
+      }
+      if (url.includes('/projects/')) {
+        return Response.json({
+          data: {
+            gid: 'p',
+            parent: { gid: 's', resource_type: 'section' },
+          },
+        });
+      }
+      return Response.json({ data: {} });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'PUT',
+      path: '/sections/s',
+      workspaceLookupPath: '/sections/s',
+      body: { data: {} },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.ok(!calls.includes('PUT'), 'no mutating fetch should have fired');
+});
+
+test('depth-capped resolution does not poison the cache for a later direct lookup', async () => {
+  const calls: string[] = [];
+  let counter = 0;
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '2222222222222222', readOnly: true }],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      if (method !== 'GET') return Response.json({ data: {} });
+      if (url.includes('/projects/deep-target')) {
+        return Response.json({
+          data: { workspace: { gid: '2222222222222222' } },
+        });
+      }
+      counter += 1;
+      // A long parent chain that eventually reaches /projects/deep-target
+      // only past the depth budget on the first (indirect) request.
+      if (counter === 1) {
+        return Response.json({
+          data: { gid: 'p1', parent: { gid: 'p2', resource_type: 'task' } },
+        });
+      }
+      if (counter === 2) {
+        return Response.json({
+          data: { gid: 'p2', parent: { gid: 'p3', resource_type: 'task' } },
+        });
+      }
+      if (counter === 3) {
+        return Response.json({
+          data: { gid: 'p3', parent: { gid: 'p4', resource_type: 'task' } },
+        });
+      }
+      return Response.json({
+        data: {
+          gid: 'p4',
+          parent: { gid: 'deep-target', resource_type: 'project' },
+        },
+      });
+    },
+  });
+
+  // First request: chain hits the depth cap before reaching deep-target's
+  // own workspace lookup.
+  await assert.rejects(
+    client.request({
+      method: 'PUT',
+      path: '/tasks/p1',
+      workspaceLookupPath: '/tasks/p1',
+      body: { data: {} },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+      return true;
+    },
+  );
+
+  const getsAfterFirstRequest = calls.filter((call) => call === 'GET').length;
+
+  // Second request: direct PUT against the depth-capped path must perform
+  // a real lookup, not short-circuit to READONLY_UNRESOLVED with 0 fetches.
+  await assert.rejects(
+    client.request({
+      method: 'PUT',
+      path: '/projects/deep-target',
+      workspaceLookupPath: '/projects/deep-target',
+      body: { data: {} },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      return true;
+    },
+  );
+
+  const getsAfterSecondRequest = calls.filter((call) => call === 'GET').length;
+  assert.ok(
+    getsAfterSecondRequest > getsAfterFirstRequest,
+    'expected the direct lookup to issue a real fetch instead of hitting a poisoned cache entry',
+  );
+});
+
 test('pagination follows next_page offsets and honors a result limit', async () => {
   const urls: string[] = [];
   const pages = [
@@ -1303,4 +1678,242 @@ test('webhook creation permits an unlisted target with explicit opt-in and an al
     },
   });
   assert.equal(calls, 1);
+});
+
+test('story mutation resolves through the live-shaped target field (no task/project keys) and succeeds in a writable workspace', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [
+      { gid: '1111111111111111', readOnly: false },
+      { gid: '2222222222222222', readOnly: true },
+    ],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      if (method !== 'GET') return Response.json({ data: { gid: 'sto-1' } });
+      if (url.includes('/stories/')) {
+        return Response.json({
+          data: {
+            gid: 'sto-1',
+            target: { gid: 'task-1', resource_type: 'task' },
+          },
+        });
+      }
+      return Response.json({
+        data: { workspace: { gid: '1111111111111111' } },
+      });
+    },
+  });
+
+  const result = await client.request({
+    method: 'PUT',
+    path: '/stories/sto-1',
+    workspaceLookupPath: '/stories/sto-1',
+    body: { data: { text: 'x' } },
+  });
+
+  assert.deepEqual(result, { data: { gid: 'sto-1' } });
+  assert.deepEqual(calls, ['GET', 'GET', 'PUT']);
+});
+
+test('story deletion resolves through the live-shaped target field and succeeds in a writable workspace', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [
+      { gid: '1111111111111111', readOnly: false },
+      { gid: '2222222222222222', readOnly: true },
+    ],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      if (method !== 'GET') return Response.json({ data: {} });
+      if (url.includes('/stories/')) {
+        return Response.json({
+          data: {
+            gid: 'sto-1',
+            target: { gid: 'task-1', resource_type: 'task' },
+          },
+        });
+      }
+      return Response.json({
+        data: { workspace: { gid: '1111111111111111' } },
+      });
+    },
+  });
+
+  await client.request({
+    method: 'DELETE',
+    path: '/stories/sto-1',
+    workspaceLookupPath: '/stories/sto-1',
+  });
+
+  assert.deepEqual(calls, ['GET', 'GET', 'DELETE']);
+});
+
+test('story mutation targeting a read-only workspace via the live-shaped target field is blocked with zero mutating fetches', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [
+      { gid: '1111111111111111', readOnly: false },
+      { gid: '2222222222222222', readOnly: true },
+    ],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      if (method !== 'GET') return Response.json({ data: { gid: 'sto-1' } });
+      if (url.includes('/stories/')) {
+        return Response.json({
+          data: {
+            gid: 'sto-1',
+            target: { gid: 'task-1', resource_type: 'task' },
+          },
+        });
+      }
+      return Response.json({
+        data: { workspace: { gid: '2222222222222222' } },
+      });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'PUT',
+      path: '/stories/sto-1',
+      workspaceLookupPath: '/stories/sto-1',
+      body: { data: { text: 'x' } },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.deepEqual(calls, ['GET', 'GET']);
+});
+
+test('rate mutation resolves through parent -> project -> workspace and succeeds in a writable workspace', async () => {
+  const urls: string[] = [];
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [
+      { gid: '1111111111111111', readOnly: false },
+      { gid: '2222222222222222', readOnly: true },
+    ],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      if (method === 'GET') urls.push(url);
+      if (method !== 'GET') return Response.json({ data: { gid: 'rate-1' } });
+      if (url.includes('/rates/')) {
+        return Response.json({
+          data: {
+            gid: 'rate-1',
+            resource: { gid: 'user-9', resource_type: 'user' },
+            parent: { gid: 'proj-1', resource_type: 'project' },
+          },
+        });
+      }
+      if (url.includes('/projects/')) {
+        return Response.json({
+          data: { workspace: { gid: '1111111111111111' } },
+        });
+      }
+      return Response.json({ data: {} });
+    },
+  });
+
+  const result = await client.request({
+    method: 'PUT',
+    path: '/rates/rate-1',
+    workspaceLookupPath: '/rates/rate-1',
+    body: { data: { rate: '100' } },
+  });
+
+  assert.deepEqual(result, { data: { gid: 'rate-1' } });
+  assert.deepEqual(calls, ['GET', 'GET', 'PUT']);
+  assert.ok(!urls.some((url) => url.includes('/tasks/user-9')));
+});
+
+test('rate mutation targeting a read-only workspace via parent is blocked with zero mutating fetches', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [
+      { gid: '1111111111111111', readOnly: false },
+      { gid: '2222222222222222', readOnly: true },
+    ],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      if (method !== 'GET') return Response.json({ data: { gid: 'rate-1' } });
+      if (url.includes('/rates/')) {
+        return Response.json({
+          data: {
+            gid: 'rate-1',
+            resource: { gid: 'user-9', resource_type: 'user' },
+            parent: { gid: 'proj-1', resource_type: 'project' },
+          },
+        });
+      }
+      if (url.includes('/projects/')) {
+        return Response.json({
+          data: { workspace: { gid: '2222222222222222' } },
+        });
+      }
+      return Response.json({ data: {} });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'PUT',
+      path: '/rates/rate-1',
+      workspaceLookupPath: '/rates/rate-1',
+      body: { data: { rate: '100' } },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_BLOCKED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.deepEqual(calls, ['GET', 'GET']);
+});
+
+test('a resource whose declared link is absent from the response exits READONLY_UNRESOLVED with zero mutating fetches', async () => {
+  const calls: string[] = [];
+  const client = new transportModule.AsanaClient({
+    token: 'safe-test-token',
+    workspaces: [{ gid: '1111111111111111', readOnly: true }],
+    fetch: async (input: string | URL | Request, init?: RequestInit) => {
+      const method = init?.method ?? 'GET';
+      calls.push(method);
+      if (method !== 'GET') return Response.json({ data: { gid: 'sto-1' } });
+      return Response.json({ data: { gid: 'sto-1' } });
+    },
+  });
+
+  await assert.rejects(
+    client.request({
+      method: 'PUT',
+      path: '/stories/sto-1',
+      workspaceLookupPath: '/stories/sto-1',
+      body: { data: { text: 'x' } },
+    }),
+    (error: unknown) => {
+      assert.equal((error as { code: string }).code, 'READONLY_UNRESOLVED');
+      assert.equal((error as { exitCode: number }).exitCode, 4);
+      return true;
+    },
+  );
+  assert.deepEqual(calls, ['GET']);
 });
