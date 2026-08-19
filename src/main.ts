@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { realpathSync } from 'node:fs';
+import { realpathSync, existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import {
@@ -16,12 +16,73 @@ import { defaultWorkspaceCachePath, listWorkspaces } from './workspaces.js';
 import { registerGeneratedCommands } from './dispatch.js';
 import { loadManifest } from './manifest.js';
 import { registerAttachmentCommands } from './attachments.js';
+import {
+  defaultUpdateCachePath,
+  maybeNotifyUpdate,
+  readUpdateCache,
+  writeUpdateCache,
+} from './update-check.js';
+import {
+  fetchLatestRelease,
+  realExecutablePath,
+  runUpgrade,
+  type RunResult,
+  type UpgradeContext,
+} from './upgrade.js';
 
-export function createProgram(): Command {
+const CLI_VERSION = '0.1.4';
+
+/**
+ * Overrides for the `upgrade` command's side-effecting dependencies (network
+ * fetch, filesystem, and the npm install subprocess). Production code
+ * (`run()`) calls `createProgram()` with no overrides, so real dependencies
+ * are used. Tests pass overrides to exercise the real argv-parsing path
+ * (commander -> action handler -> runUpgrade) without touching the network
+ * or installing anything.
+ */
+export interface UpgradeDepsOverride {
+  env?: Record<string, string | undefined>;
+  currentVersion?: string;
+  realPath?: string;
+  fetchLatest?: UpgradeContext['fetchLatest'];
+  fileExists?: (path: string) => boolean;
+  readFile?: (path: string) => string;
+  runner?: (command: string, args: string[]) => Promise<RunResult>;
+}
+
+async function fetchLatestVersion(): Promise<string> {
+  const response = await fetch(
+    'https://api.github.com/repos/leighton-tidwell/agentic-asana-cli/releases/latest',
+  );
+  if (!response.ok) throw new Error(`update check failed: ${response.status}`);
+  const body = (await response.json()) as { tag_name?: string };
+  const tag = body.tag_name ?? '';
+  return tag.startsWith('v') ? tag.slice(1) : tag;
+}
+
+async function checkForUpdate(argv: string[]): Promise<void> {
+  await maybeNotifyUpdate({
+    argv,
+    env: process.env,
+    isTTY: process.stderr.isTTY ?? false,
+    cachePath: defaultUpdateCachePath(),
+    now: Date.now,
+    currentVersion: CLI_VERSION,
+    cliName: 'asn',
+    fetchLatest: fetchLatestVersion,
+    readCache: readUpdateCache,
+    writeCache: writeUpdateCache,
+    write: (text: string) => process.stderr.write(text),
+  });
+}
+
+export function createProgram(
+  upgradeDepsOverride: UpgradeDepsOverride = {},
+): Command {
   const program = new Command()
     .name('asn')
     .description('Agent-first Asana CLI')
-    .version('0.1.4')
+    .version(CLI_VERSION)
     .option('--token <pat>', 'PAT fallback (prefer ASANA_PAT)')
     .option('--config <path>', 'config file path', defaultConfigPath())
     .option('--output <format>', 'json, jsonl, or table', 'json')
@@ -39,6 +100,7 @@ export function createProgram(): Command {
       'explicitly allow a webhook target outside webhookTargetAllowlist',
     )
     .option('--json-help', 'emit the machine-readable command catalog')
+    .option('--no-update-check', 'skip the startup update check')
     .action(() => {
       if (program.opts<{ jsonHelp?: boolean }>().jsonHelp) {
         process.stdout.write(`${JSON.stringify(loadManifest())}\n`);
@@ -53,6 +115,66 @@ export function createProgram(): Command {
     .action(() => {
       process.stdout.write(`${JSON.stringify(loadManifest())}\n`);
     });
+
+  program
+    .command('upgrade')
+    .alias('update')
+    .description('Upgrade this CLI to the latest published version')
+    .option('--check', 'report versions without changing anything')
+    .option('--target <x.y.z>', 'pin a specific target version')
+    .option('--yes', 'install without an interactive confirmation')
+    .action(
+      async (commandOptions: {
+        check?: boolean;
+        target?: string;
+        yes?: boolean;
+      }) => {
+        const argv1 = process.argv[1];
+        const outcome = await runUpgrade(
+          {
+            check: commandOptions.check,
+            version: commandOptions.target,
+            yes: commandOptions.yes,
+          },
+          {
+            env: upgradeDepsOverride.env ?? process.env,
+            currentVersion: upgradeDepsOverride.currentVersion ?? CLI_VERSION,
+            realPath: upgradeDepsOverride.realPath ?? realExecutablePath(argv1),
+            fetchLatest:
+              upgradeDepsOverride.fetchLatest ??
+              (() => fetchLatestRelease(globalThis.fetch)),
+            fileExists:
+              upgradeDepsOverride.fileExists ??
+              ((path: string) => existsSync(path)),
+            readFile:
+              upgradeDepsOverride.readFile ??
+              ((path: string) => readFileSync(path, 'utf8')),
+            runner:
+              upgradeDepsOverride.runner ??
+              (async (command: string, args: string[]) => {
+                const { spawn } = await import('node:child_process');
+                return new Promise((resolvePromise, rejectPromise) => {
+                  const child = spawn(command, args, { stdio: 'pipe' });
+                  let stdout = '';
+                  let stderr = '';
+                  child.stdout.on('data', (chunk: Buffer) => {
+                    stdout += chunk.toString();
+                  });
+                  child.stderr.on('data', (chunk: Buffer) => {
+                    stderr += chunk.toString();
+                  });
+                  child.on('error', rejectPromise);
+                  child.on('close', (code) => {
+                    resolvePromise({ code: code ?? 1, stdout, stderr });
+                  });
+                });
+              }),
+          },
+        );
+        process.stdout.write(`${outcome.message}\n`);
+        process.exitCode = outcome.exitCode;
+      },
+    );
 
   const auth = program.command('auth').description('Manage authentication');
   auth
@@ -130,6 +252,7 @@ export function createProgram(): Command {
 }
 
 export async function run(argv = process.argv): Promise<number> {
+  await checkForUpdate(argv.slice(2));
   try {
     await createProgram().parseAsync(argv);
     return 0;

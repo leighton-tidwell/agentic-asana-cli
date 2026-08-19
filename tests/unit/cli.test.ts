@@ -247,3 +247,121 @@ test('CLI entrypoint executes when invoked through an npm-style symlink', async 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('upgrade pin flag (space-separated) reaches the action handler and installs the pinned version', async () => {
+  const { createProgram } = await import('../../src/main.js');
+  const calls: Array<{ command: string; args: string[] }> = [];
+  const program = createProgram({
+    env: { ASN_INSTALL_CHANNEL: 'npm-global' },
+    currentVersion: '0.1.3',
+    realPath: '/usr/local/lib/node_modules/@agentic-asana/asn/dist/main.js',
+    fetchLatest: async () => ({ version: '0.1.4' }),
+    runner: async (command: string, args: string[]) => {
+      calls.push({ command, args });
+      return { code: 0, stdout: '', stderr: '' };
+    },
+  });
+  let written = '';
+  const originalWrite = process.stdout.write.bind(process.stdout);
+  process.stdout.write = ((chunk: string) => {
+    written += chunk;
+    return true;
+  }) as typeof process.stdout.write;
+  try {
+    await program.parseAsync([
+      'node',
+      'asn',
+      'upgrade',
+      '--target',
+      '0.1.2',
+      '--yes',
+    ]);
+  } finally {
+    process.stdout.write = originalWrite;
+  }
+  assert.equal(calls.length, 1, 'the install runner was never invoked');
+  assert.match(calls[0]?.args[2] ?? '', /v0\.1\.2/);
+  assert.match(written, /0\.1\.2/);
+  assert.equal(written.trim(), 'upgraded 0.1.3 -> 0.1.2');
+});
+
+test('upgrade pin flag (=x.y.z form) behaves identically to the space-separated form', async () => {
+  const { createProgram } = await import('../../src/main.js');
+  const calls: Array<{ command: string; args: string[] }> = [];
+  const program = createProgram({
+    env: { ASN_INSTALL_CHANNEL: 'npm-global' },
+    currentVersion: '0.1.3',
+    realPath: '/usr/local/lib/node_modules/@agentic-asana/asn/dist/main.js',
+    fetchLatest: async () => ({ version: '0.1.4' }),
+    runner: async (command: string, args: string[]) => {
+      calls.push({ command, args });
+      return { code: 0, stdout: '', stderr: '' };
+    },
+  });
+  let written = '';
+  const originalWrite = process.stdout.write.bind(process.stdout);
+  process.stdout.write = ((chunk: string) => {
+    written += chunk;
+    return true;
+  }) as typeof process.stdout.write;
+  try {
+    await program.parseAsync([
+      'node',
+      'asn',
+      'upgrade',
+      '--target=0.1.2',
+      '--yes',
+    ]);
+  } finally {
+    process.stdout.write = originalWrite;
+  }
+  assert.equal(calls.length, 1);
+  assert.match(calls[0]?.args[2] ?? '', /v0\.1\.2/);
+  assert.equal(written.trim(), 'upgraded 0.1.3 -> 0.1.2');
+});
+
+test('the update alias behaves identically to upgrade for the pin flag', async () => {
+  const { createProgram } = await import('../../src/main.js');
+  const calls: Array<{ command: string; args: string[] }> = [];
+  const program = createProgram({
+    env: { ASN_INSTALL_CHANNEL: 'npm-global' },
+    currentVersion: '0.1.3',
+    realPath: '/usr/local/lib/node_modules/@agentic-asana/asn/dist/main.js',
+    fetchLatest: async () => ({ version: '0.1.4' }),
+    runner: async (command: string, args: string[]) => {
+      calls.push({ command, args });
+      return { code: 0, stdout: '', stderr: '' };
+    },
+  });
+  let written = '';
+  const originalWrite = process.stdout.write.bind(process.stdout);
+  process.stdout.write = ((chunk: string) => {
+    written += chunk;
+    return true;
+  }) as typeof process.stdout.write;
+  try {
+    await program.parseAsync([
+      'node',
+      'asn',
+      'update',
+      '--target',
+      '0.1.2',
+      '--yes',
+    ]);
+  } finally {
+    process.stdout.write = originalWrite;
+  }
+  assert.equal(calls.length, 1);
+  assert.match(calls[0]?.args[2] ?? '', /v0\.1\.2/);
+  assert.equal(written.trim(), 'upgraded 0.1.3 -> 0.1.2');
+});
+
+test('root --version still prints the CLI version unchanged', () => {
+  const run = spawnSync(
+    process.execPath,
+    ['--import', 'tsx', 'src/main.ts', '--version'],
+    { cwd: root, encoding: 'utf8' },
+  );
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout.trim(), '0.1.4');
+});
