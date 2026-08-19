@@ -30,7 +30,7 @@ import {
   type UpgradeContext,
 } from './upgrade.js';
 
-const CLI_VERSION = '0.1.4';
+const CLI_VERSION = '0.1.5';
 
 /**
  * Overrides for the `upgrade` command's side-effecting dependencies (network

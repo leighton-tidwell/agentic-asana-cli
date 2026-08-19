@@ -6,7 +6,7 @@ compatibility: Requires Node.js 20+, asn, and an Asana PAT.
 allowed-tools: Bash(asn:*)
 metadata:
   author: leighton-tidwell
-  version: '0.1.4'
+  version: '0.1.5'
 ---
 
 # Asana Reporting

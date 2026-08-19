@@ -242,7 +242,7 @@ test('CLI entrypoint executes when invoked through an npm-style symlink', async 
       { cwd: root, encoding: 'utf8' },
     );
     assert.equal(run.status, 0, run.stderr);
-    assert.equal(run.stdout.trim(), '0.1.4');
+    assert.equal(run.stdout.trim(), '0.1.5');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -363,5 +363,5 @@ test('root --version still prints the CLI version unchanged', () => {
     { cwd: root, encoding: 'utf8' },
   );
   assert.equal(run.status, 0, run.stderr);
-  assert.equal(run.stdout.trim(), '0.1.4');
+  assert.equal(run.stdout.trim(), '0.1.5');
 });
