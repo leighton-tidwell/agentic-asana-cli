@@ -3,7 +3,7 @@
   "openapi": "3.0.0",
   "title": "Asana",
   "version": "1.0",
-  "operations": 249,
+  "operations": 251,
   "commands": [
     {
       "command": [
@@ -6874,6 +6874,44 @@
     {
       "command": [
         "projects",
+        "rollup-project"
+      ],
+      "operationId": "rollupProject",
+      "resource": "projects",
+      "operation": "rollup-project",
+      "method": "POST",
+      "mutates": true,
+      "path": "/projects/{project_gid}/rollup",
+      "summary": "Roll up subtask dates for a project",
+      "description": "<b>Required scope: </b><code>projects:write</code>\n\nCreates and returns a job that will asynchronously roll up subtask dates for tasks in the project with the given `project_gid` whose descendant dates fall outside their current date range. Each parent task's start and due dates are reconciled to cover its descendants' date range.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "project_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "paginated": false
+    },
+    {
+      "command": [
+        "projects",
         "search-projects-for-workspace"
       ],
       "operationId": "searchProjectsForWorkspace",
@@ -7679,7 +7717,7 @@
           "in": "query",
           "name": "workspace",
           "flag": "--workspace",
-          "required": false,
+          "required": true,
           "type": "string"
         }
       ],
@@ -8233,20 +8271,6 @@
         },
         {
           "in": "query",
-          "name": "limit",
-          "flag": "--limit",
-          "required": false,
-          "type": "integer"
-        },
-        {
-          "in": "query",
-          "name": "offset",
-          "flag": "--offset",
-          "required": false,
-          "type": "string"
-        },
-        {
-          "in": "query",
           "name": "opt_fields",
           "flag": "--opt-fields",
           "required": false,
@@ -8277,7 +8301,7 @@
           }
         }
       },
-      "paginated": true
+      "paginated": false
     },
     {
       "command": [
@@ -8601,6 +8625,13 @@
         },
         {
           "in": "query",
+          "name": "created_after",
+          "flag": "--created-after",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
           "name": "limit",
           "flag": "--limit",
           "required": false,
@@ -8625,6 +8656,23 @@
           "in": "query",
           "name": "opt_pretty",
           "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "in": "query",
+          "name": "resource_subtype",
+          "flag": "--resource-subtype",
+          "required": false,
+          "type": "string",
+          "enum": [
+            "comment_added"
+          ]
+        },
+        {
+          "in": "query",
+          "name": "sort_ascending",
+          "flag": "--sort-ascending",
           "required": false,
           "type": "boolean"
         }
@@ -8653,6 +8701,13 @@
         },
         {
           "in": "query",
+          "name": "created_after",
+          "flag": "--created-after",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
           "name": "limit",
           "flag": "--limit",
           "required": false,
@@ -8677,6 +8732,23 @@
           "in": "query",
           "name": "opt_pretty",
           "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "in": "query",
+          "name": "resource_subtype",
+          "flag": "--resource-subtype",
+          "required": false,
+          "type": "string",
+          "enum": [
+            "comment_added"
+          ]
+        },
+        {
+          "in": "query",
+          "name": "sort_ascending",
+          "flag": "--sort-ascending",
           "required": false,
           "type": "boolean"
         }
@@ -10144,7 +10216,7 @@
       "mutates": false,
       "path": "/tasks/{task_gid}",
       "summary": "Get a task",
-      "description": "<b>Required scope: </b><code>tasks:read</code>\n\n<table>\n  <tr>\n    <th>Field</th>\n    <th>Required Scope</th>\n  </tr>\n  <tr>\n    <td><code>memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>effective_memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>actual_time_minutes</code></td>\n    <td><code>time_tracking_entries:read</code></td>\n  </tr>\n</table>\n\nReturns the complete task record for a single task.",
+      "description": "<b>Required scope: </b><code>tasks:read</code>\n\n<table>\n  <tr>\n    <th>Field</th>\n    <th>Required Scope</th>\n  </tr>\n  <tr>\n    <td><code>memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>effective_memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>custom_type</code></td>\n    <td><code>custom_types:read</code></td>\n  </tr>\n  <tr>\n    <td><code>custom_type_status_option</code></td>\n    <td><code>custom_types:read</code></td>\n  </tr>\n  <tr>\n    <td><code>actual_time_minutes</code></td>\n    <td><code>time_tracking_entries:read</code></td>\n  </tr>\n</table>\n\nReturns the complete task record for a single task.",
       "parameters": [
         {
           "in": "path",
@@ -10182,7 +10254,7 @@
       "mutates": false,
       "path": "/workspaces/{workspace_gid}/tasks/custom_id/{custom_id}",
       "summary": "Get a task for a given custom ID",
-      "description": "<b>Required scope: </b><code>tasks:read</code>\n\n<table>\n  <tr>\n    <th>Field</th>\n    <th>Required Scope</th>\n  </tr>\n  <tr>\n    <td><code>memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>effective_memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>actual_time_minutes</code></td>\n    <td><code>time_tracking_entries:read</code></td>\n  </tr>\n</table>\n\nReturns a task given a custom ID shortcode.",
+      "description": "<b>Required scope: </b><code>tasks:read</code>\n\n<table>\n  <tr>\n    <th>Field</th>\n    <th>Required Scope</th>\n  </tr>\n  <tr>\n    <td><code>memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>effective_memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>custom_type</code></td>\n    <td><code>custom_types:read</code></td>\n  </tr>\n  <tr>\n    <td><code>custom_type_status_option</code></td>\n    <td><code>custom_types:read</code></td>\n  </tr>\n  <tr>\n    <td><code>actual_time_minutes</code></td>\n    <td><code>time_tracking_entries:read</code></td>\n  </tr>\n</table>\n\nReturns a task given a custom ID shortcode.",
       "parameters": [
         {
           "in": "path",
@@ -10844,6 +10916,44 @@
           }
         }
       },
+      "paginated": false
+    },
+    {
+      "command": [
+        "tasks",
+        "rollup-task"
+      ],
+      "operationId": "rollupTask",
+      "resource": "tasks",
+      "operation": "rollup-task",
+      "method": "POST",
+      "mutates": true,
+      "path": "/tasks/{task_gid}/rollup",
+      "summary": "Roll up subtask dates for a task",
+      "description": "<b>Required scope: </b><code>tasks:write</code>\n\nCreates and returns a job that will asynchronously roll up the subtask dates for the subtask tree rooted at the task with the given `task_gid`. Each parent task's start and due dates are reconciled to cover its descendants' date range.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "task_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
       "paginated": false
     },
     {
