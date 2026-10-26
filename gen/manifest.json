@@ -3,7 +3,7 @@
   "openapi": "3.0.0",
   "title": "Asana",
   "version": "1.0",
-  "operations": 249,
+  "operations": 271,
   "commands": [
     {
       "command": [
@@ -3441,6 +3441,213 @@
     },
     {
       "command": [
+        "notifications",
+        "get-notifications-for-user"
+      ],
+      "operationId": "getNotificationsForUser",
+      "resource": "notifications",
+      "operation": "get-notifications-for-user",
+      "method": "GET",
+      "mutates": false,
+      "path": "/users/{user_gid}/notifications",
+      "summary": "Get notifications for a user",
+      "description": "<b>Required scope: </b><code>notifications:read</code>\n\nReturns a paginated collection of active, unarchived notifications for the current user in newest-first Inbox order. A user may only list their own notifications. The default page size is 50 notifications.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "user_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "limit",
+          "flag": "--limit",
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "in": "query",
+          "name": "offset",
+          "flag": "--offset",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "in": "query",
+          "name": "workspace",
+          "flag": "--workspace",
+          "required": true,
+          "type": "string"
+        }
+      ],
+      "paginated": true
+    },
+    {
+      "command": [
+        "notifications",
+        "mark-notifications-read-for-user"
+      ],
+      "operationId": "markNotificationsReadForUser",
+      "resource": "notifications",
+      "operation": "mark-notifications-read-for-user",
+      "method": "POST",
+      "mutates": true,
+      "path": "/users/{user_gid}/notifications/markRead",
+      "summary": "Mark notifications as read",
+      "description": "<b>Required scope: </b><code>notifications:write</code>\n\nMarks only the given notifications as read for the authenticated user. A user may only mark their own notifications. GIDs that don't exist, don't belong to the caller, or have been deleted are reported in failed_gids rather than failing the whole request.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "user_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "body",
+          "name": "body-json",
+          "flag": "--body-json",
+          "required": true,
+          "type": "json|@file|-",
+          "description": "Complete JSON request body, inline, from @file, or stdin"
+        },
+        {
+          "in": "body",
+          "name": "field",
+          "flag": "--field",
+          "required": false,
+          "type": "key=value",
+          "repeatable": true,
+          "description": "Set one request body field; may be repeated"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentTypes": [
+          "application/json"
+        ],
+        "schemas": {
+          "application/json": {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MarkNotificationsRequest"
+              }
+            }
+          }
+        }
+      },
+      "paginated": false
+    },
+    {
+      "command": [
+        "notifications",
+        "mark-notifications-unread-for-user"
+      ],
+      "operationId": "markNotificationsUnreadForUser",
+      "resource": "notifications",
+      "operation": "mark-notifications-unread-for-user",
+      "method": "POST",
+      "mutates": true,
+      "path": "/users/{user_gid}/notifications/markUnread",
+      "summary": "Mark notifications as unread",
+      "description": "<b>Required scope: </b><code>notifications:write</code>\n\nMarks only the given notifications as unread for the authenticated user. A notification that is archived is also unarchived and moves to the top of Inbox, matching the Inbox UI's unarchive action. Notifications already in Inbox keep their existing position. A user may only mark their own notifications. GIDs that don't exist, don't belong to the caller, or have been deleted are reported in failed_gids rather than failing the whole request.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "user_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "body",
+          "name": "body-json",
+          "flag": "--body-json",
+          "required": true,
+          "type": "json|@file|-",
+          "description": "Complete JSON request body, inline, from @file, or stdin"
+        },
+        {
+          "in": "body",
+          "name": "field",
+          "flag": "--field",
+          "required": false,
+          "type": "key=value",
+          "repeatable": true,
+          "description": "Set one request body field; may be repeated"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentTypes": [
+          "application/json"
+        ],
+        "schemas": {
+          "application/json": {
+            "type": "object",
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/MarkNotificationsRequest"
+              }
+            }
+          }
+        }
+      },
+      "paginated": false
+    },
+    {
+      "command": [
         "ooo-entries",
         "create-ooo-entry"
       ],
@@ -4462,7 +4669,7 @@
       "mutates": false,
       "path": "/portfolios",
       "summary": "Get multiple portfolios",
-      "description": "<b>Required scope: </b><code>portfolios:read</code>\n\nReturns a list of the portfolios in compact representation.\nThe portfolios are filtered based on the following criteria:\n- If the request is made from a regular API user (PAT or OAuth), then only portfolios owned by the current API user are returned.\n- If the request is made from a Service Account without the `owner` parameter, then all portfolios across the workspace are returned.\n- If the request is made from a Service Account with the `owner` parameter, then only portfolios owned by the specified user are returned.",
+      "description": "<b>Required scope: </b><code>portfolios:read</code>\n\nReturns a list of the portfolios in compact representation.\nThe portfolios are filtered based on the following criteria:\n- If the request is made from a regular API user (PAT or OAuth), only portfolios owned by the current API user are returned. If the `owner` parameter is omitted, it defaults to the current API user. If specified, it must identify that user; use `owner=me` to refer to the current API user.\n- If the request is made from a Service Account without the `owner` parameter, then all portfolios across the workspace are returned.\n- If the request is made from a Service Account with the `owner` parameter, then only portfolios owned by the specified user are returned.",
       "parameters": [
         {
           "in": "query",
@@ -6874,6 +7081,44 @@
     {
       "command": [
         "projects",
+        "rollup-project"
+      ],
+      "operationId": "rollupProject",
+      "resource": "projects",
+      "operation": "rollup-project",
+      "method": "POST",
+      "mutates": true,
+      "path": "/projects/{project_gid}/rollup",
+      "summary": "Roll up subtask dates for a project",
+      "description": "<b>Required scope: </b><code>projects:write</code>\n\nCreates and returns a job that will asynchronously roll up subtask dates for tasks in the project with the given `project_gid` whose descendant dates fall outside their current date range. Each parent task's start and due dates are reconciled to cover its descendants' date range.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "project_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "paginated": false
+    },
+    {
+      "command": [
+        "projects",
         "search-projects-for-workspace"
       ],
       "operationId": "searchProjectsForWorkspace",
@@ -7002,6 +7247,13 @@
           "flag": "--due-on-before",
           "required": false,
           "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "limit",
+          "flag": "--limit",
+          "required": false,
+          "type": "integer"
         },
         {
           "in": "query",
@@ -7494,6 +7746,426 @@
     },
     {
       "command": [
+        "records",
+        "create-record"
+      ],
+      "operationId": "createRecord",
+      "resource": "records",
+      "operation": "create-record",
+      "method": "POST",
+      "mutates": true,
+      "path": "/records",
+      "summary": "Create a record",
+      "description": "<b>Required scope: </b><code>records:write</code>\n\nCreates a new record in a table.\n\nReturns the full record of the newly created record.",
+      "parameters": [
+        {
+          "in": "body",
+          "name": "body-json",
+          "flag": "--body-json",
+          "required": true,
+          "type": "json|@file|-",
+          "description": "Complete JSON request body, inline, from @file, or stdin"
+        },
+        {
+          "in": "body",
+          "name": "field",
+          "flag": "--field",
+          "required": false,
+          "type": "key=value",
+          "repeatable": true,
+          "description": "Set one request body field; may be repeated"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentTypes": [
+          "application/json"
+        ],
+        "schemas": {
+          "application/json": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/RecordItemRequest"
+              }
+            }
+          }
+        }
+      },
+      "paginated": false
+    },
+    {
+      "command": [
+        "records",
+        "delete-record"
+      ],
+      "operationId": "deleteRecord",
+      "resource": "records",
+      "operation": "delete-record",
+      "method": "DELETE",
+      "mutates": true,
+      "path": "/records/{record_gid}",
+      "summary": "Delete a record",
+      "description": "<b>Required scope: </b><code>records:delete</code>\n\nA specific, existing record can be deleted by making a DELETE request\non the URL for that record.\n\nReturns an empty data record.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "record_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "paginated": false
+    },
+    {
+      "command": [
+        "records",
+        "get-record"
+      ],
+      "operationId": "getRecord",
+      "resource": "records",
+      "operation": "get-record",
+      "method": "GET",
+      "mutates": false,
+      "path": "/records/{record_gid}",
+      "summary": "Get a record",
+      "description": "<b>Required scope: </b><code>records:read</code>\n\nReturns the complete record for a single record.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "record_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "paginated": false
+    },
+    {
+      "command": [
+        "records",
+        "get-records-for-table"
+      ],
+      "operationId": "getRecordsForTable",
+      "resource": "records",
+      "operation": "get-records-for-table",
+      "method": "GET",
+      "mutates": false,
+      "path": "/tables/{table_gid}/records",
+      "summary": "Get records in a table",
+      "description": "<b>Required scope: </b><code>records:read</code>\n\nReturns the compact records for all records in the given table.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "table_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "limit",
+          "flag": "--limit",
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "in": "query",
+          "name": "modified_since",
+          "flag": "--modified-since",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "offset",
+          "flag": "--offset",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "in": "query",
+          "name": "sort_by",
+          "flag": "--sort-by",
+          "required": false,
+          "type": "string",
+          "enum": [
+            "created_at"
+          ]
+        }
+      ],
+      "paginated": true
+    },
+    {
+      "command": [
+        "records",
+        "search-records-for-workspace"
+      ],
+      "operationId": "searchRecordsForWorkspace",
+      "resource": "records",
+      "operation": "search-records-for-workspace",
+      "method": "GET",
+      "mutates": false,
+      "path": "/workspaces/{workspace_gid}/records/search",
+      "summary": "Search records in a workspace",
+      "description": "<b>Required scope: </b><code>records:read</code>\n\nTo mirror the functionality of the Asana web app's advanced search feature, this endpoint allows you to build complex filters to find and retrieve records across all of a workspace's tables.\nCustom field filters are also supported, using the same `custom_fields.{gid}.*` query parameters documented for [task search](/reference/searchtasksforworkspace).\n#### Premium access\nLike task search, this endpoint is only available to premium Asana users. Making a search request using credentials of a non-premium user will result in a `402 Payment Required` error.\n#### Pagination\nSearch results are not stable; repeating the same query multiple times may return the data in a different order, even if the data do not change. Page sizes are limited to a maximum of 100 items, and can be specified by the `limit` query parameter.\n#### Eventual consistency\nChanges in Asana are forwarded to our search infrastructure to be indexed, which can take between 10 and 60 seconds to complete under normal operation. If you need read-your-write behavior, use [Get records in a table](/reference/getrecordsfortable) instead.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "workspace_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "created_at.after",
+          "flag": "--created-at-after",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "created_at.before",
+          "flag": "--created-at-before",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "created_on",
+          "flag": "--created-on",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "created_on.after",
+          "flag": "--created-on-after",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "created_on.before",
+          "flag": "--created-on-before",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "followers.any",
+          "flag": "--followers-any",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "followers.not",
+          "flag": "--followers-not",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "limit",
+          "flag": "--limit",
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "in": "query",
+          "name": "sort_ascending",
+          "flag": "--sort-ascending",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "in": "query",
+          "name": "sort_by",
+          "flag": "--sort-by",
+          "required": false,
+          "type": "string",
+          "enum": [
+            "created_at",
+            "modified_at"
+          ]
+        },
+        {
+          "in": "query",
+          "name": "tables.all",
+          "flag": "--tables-all",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "tables.any",
+          "flag": "--tables-any",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "tables.not",
+          "flag": "--tables-not",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "teams.any",
+          "flag": "--teams-any",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "text",
+          "flag": "--text",
+          "required": false,
+          "type": "string"
+        }
+      ],
+      "paginated": false
+    },
+    {
+      "command": [
+        "records",
+        "update-record"
+      ],
+      "operationId": "updateRecord",
+      "resource": "records",
+      "operation": "update-record",
+      "method": "PUT",
+      "mutates": true,
+      "path": "/records/{record_gid}",
+      "summary": "Update a record",
+      "description": "<b>Required scope: </b><code>records:write</code>\n\nA specific, existing record can be updated by making a PUT request on\nthe URL for that record. Only the fields provided in the `data` block\nwill be updated; any unspecified fields will remain unchanged.\n\nReturns the complete updated record.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "record_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "body",
+          "name": "body-json",
+          "flag": "--body-json",
+          "required": true,
+          "type": "json|@file|-",
+          "description": "Complete JSON request body, inline, from @file, or stdin"
+        },
+        {
+          "in": "body",
+          "name": "field",
+          "flag": "--field",
+          "required": false,
+          "type": "key=value",
+          "repeatable": true,
+          "description": "Set one request body field; may be repeated"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentTypes": [
+          "application/json"
+        ],
+        "schemas": {
+          "application/json": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/RecordItemUpdateRequest"
+              }
+            }
+          }
+        }
+      },
+      "paginated": false
+    },
+    {
+      "command": [
         "roles",
         "create-role"
       ],
@@ -7679,7 +8351,7 @@
           "in": "query",
           "name": "workspace",
           "flag": "--workspace",
-          "required": false,
+          "required": true,
           "type": "string"
         }
       ],
@@ -8233,20 +8905,6 @@
         },
         {
           "in": "query",
-          "name": "limit",
-          "flag": "--limit",
-          "required": false,
-          "type": "integer"
-        },
-        {
-          "in": "query",
-          "name": "offset",
-          "flag": "--offset",
-          "required": false,
-          "type": "string"
-        },
-        {
-          "in": "query",
           "name": "opt_fields",
           "flag": "--opt-fields",
           "required": false,
@@ -8277,7 +8935,7 @@
           }
         }
       },
-      "paginated": true
+      "paginated": false
     },
     {
       "command": [
@@ -8481,6 +9139,77 @@
     {
       "command": [
         "stories",
+        "create-story-for-record"
+      ],
+      "operationId": "createStoryForRecord",
+      "resource": "stories",
+      "operation": "create-story-for-record",
+      "method": "POST",
+      "mutates": true,
+      "path": "/records/{record_gid}/stories",
+      "summary": "Create a story on a record",
+      "description": "<b>Required scope: </b><code>stories:write</code>\n\nAdds a story to a record. This endpoint currently only allows for\ncomment stories to be created. The comment will be authored by the\ncurrently authenticated user, and timestamped when the server receives\nthe request.\n\nReturns the full record for the new story added to the record.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "record_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "body",
+          "name": "body-json",
+          "flag": "--body-json",
+          "required": true,
+          "type": "json|@file|-",
+          "description": "Complete JSON request body, inline, from @file, or stdin"
+        },
+        {
+          "in": "body",
+          "name": "field",
+          "flag": "--field",
+          "required": false,
+          "type": "key=value",
+          "repeatable": true,
+          "description": "Set one request body field; may be repeated"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentTypes": [
+          "application/json"
+        ],
+        "schemas": {
+          "application/json": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/StoryRequest"
+              }
+            }
+          }
+        }
+      },
+      "paginated": false
+    },
+    {
+      "command": [
+        "stories",
         "create-story-for-task"
       ],
       "operationId": "createStoryForTask",
@@ -8490,7 +9219,7 @@
       "mutates": true,
       "path": "/tasks/{task_gid}/stories",
       "summary": "Create a story on a task",
-      "description": "<b>Required scope: </b><code>stories:write</code>\n\nAdds a story to a task. This endpoint currently only allows for comment\nstories to be created. The comment will be authored by the currently\nauthenticated user, and timestamped when the server receives the request.\n\nReturns the full record for the new story added to the task.",
+      "description": "<b>Required scope: </b><code>stories:write</code>\n\nAdds a story to a task. This endpoint currently only allows for comment\nstories to be created. The comment will be authored by the currently\nauthenticated user, and timestamped when the server receives the request.\n\nOmit `parent_comment` to create a top-level comment. To create a threaded\nreply, pass the top-level comment's `comment_gid`, not its story `gid`.\nRetrieve it with `GET /stories/{story_gid}?opt_fields=comment_gid` or\n`GET /tasks/{task_gid}/stories?opt_fields=comment_gid,text,anchor_gid`.\nThe parent must belong to this task and must not itself be a reply.\nA top-level comment's `anchor_gid` is the task GID; a reply's `anchor_gid`\nis its parent comment's envelope GID.\n\nReturns the full record for the new story added to the task.",
       "parameters": [
         {
           "in": "path",
@@ -8541,7 +9270,7 @@
             "type": "object",
             "properties": {
               "data": {
-                "$ref": "#/components/schemas/StoryRequest"
+                "$ref": "#/components/schemas/TaskStoryCreateRequest"
               }
             }
           }
@@ -8601,6 +9330,13 @@
         },
         {
           "in": "query",
+          "name": "created_after",
+          "flag": "--created-after",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
           "name": "limit",
           "flag": "--limit",
           "required": false,
@@ -8625,6 +9361,99 @@
           "in": "query",
           "name": "opt_pretty",
           "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "in": "query",
+          "name": "resource_subtype",
+          "flag": "--resource-subtype",
+          "required": false,
+          "type": "string",
+          "enum": [
+            "comment_added"
+          ]
+        },
+        {
+          "in": "query",
+          "name": "sort_ascending",
+          "flag": "--sort-ascending",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "paginated": true
+    },
+    {
+      "command": [
+        "stories",
+        "get-stories-for-record"
+      ],
+      "operationId": "getStoriesForRecord",
+      "resource": "stories",
+      "operation": "get-stories-for-record",
+      "method": "GET",
+      "mutates": false,
+      "path": "/records/{record_gid}/stories",
+      "summary": "Get stories from a record",
+      "description": "<b>Required scope: </b><code>stories:read</code>\n\nReturns the compact records for all stories on the record.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "record_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "created_after",
+          "flag": "--created-after",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "limit",
+          "flag": "--limit",
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "in": "query",
+          "name": "offset",
+          "flag": "--offset",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "in": "query",
+          "name": "resource_subtype",
+          "flag": "--resource-subtype",
+          "required": false,
+          "type": "string",
+          "enum": [
+            "comment_added"
+          ]
+        },
+        {
+          "in": "query",
+          "name": "sort_ascending",
+          "flag": "--sort-ascending",
           "required": false,
           "type": "boolean"
         }
@@ -8653,6 +9482,13 @@
         },
         {
           "in": "query",
+          "name": "created_after",
+          "flag": "--created-after",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
           "name": "limit",
           "flag": "--limit",
           "required": false,
@@ -8677,6 +9513,23 @@
           "in": "query",
           "name": "opt_pretty",
           "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        },
+        {
+          "in": "query",
+          "name": "resource_subtype",
+          "flag": "--resource-subtype",
+          "required": false,
+          "type": "string",
+          "enum": [
+            "comment_added"
+          ]
+        },
+        {
+          "in": "query",
+          "name": "sort_ascending",
+          "flag": "--sort-ascending",
           "required": false,
           "type": "boolean"
         }
@@ -8785,6 +9638,500 @@
             "properties": {
               "data": {
                 "$ref": "#/components/schemas/StoryRequest"
+              }
+            }
+          }
+        }
+      },
+      "paginated": false
+    },
+    {
+      "command": [
+        "tables",
+        "add-custom-field-setting-for-table"
+      ],
+      "operationId": "addCustomFieldSettingForTable",
+      "resource": "tables",
+      "operation": "add-custom-field-setting-for-table",
+      "method": "POST",
+      "mutates": true,
+      "path": "/tables/{table_gid}/addCustomFieldSetting",
+      "summary": "Add a custom field to a table",
+      "description": "<b>Required scope: </b><code>tables:write</code>\n\nCustom fields are associated with tables by way of custom field settings. This method creates a setting for the table.\nUnlike projects and portfolios, tables only support custom fields that are global (published) to the workspace. Reusing a non-global custom field, or creating a new field inline that isn't global, will fail with a `403 Forbidden` error.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "table_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "body",
+          "name": "body-json",
+          "flag": "--body-json",
+          "required": true,
+          "type": "json|@file|-",
+          "description": "Complete JSON request body, inline, from @file, or stdin"
+        },
+        {
+          "in": "body",
+          "name": "field",
+          "flag": "--field",
+          "required": false,
+          "type": "key=value",
+          "repeatable": true,
+          "description": "Set one request body field; may be repeated"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentTypes": [
+          "application/json"
+        ],
+        "schemas": {
+          "application/json": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AddCustomFieldSettingRequest"
+              }
+            }
+          }
+        }
+      },
+      "paginated": false
+    },
+    {
+      "command": [
+        "tables",
+        "create-table"
+      ],
+      "operationId": "createTable",
+      "resource": "tables",
+      "operation": "create-table",
+      "method": "POST",
+      "mutates": true,
+      "path": "/tables",
+      "summary": "Create a table",
+      "description": "<b>Required scope: </b><code>tables:write</code>\n\nCreates a new table in a workspace.\n\nReturns the full record of the newly created table.",
+      "parameters": [
+        {
+          "in": "body",
+          "name": "body-json",
+          "flag": "--body-json",
+          "required": true,
+          "type": "json|@file|-",
+          "description": "Complete JSON request body, inline, from @file, or stdin"
+        },
+        {
+          "in": "body",
+          "name": "field",
+          "flag": "--field",
+          "required": false,
+          "type": "key=value",
+          "repeatable": true,
+          "description": "Set one request body field; may be repeated"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentTypes": [
+          "application/json"
+        ],
+        "schemas": {
+          "application/json": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/TableRequest"
+              }
+            }
+          }
+        }
+      },
+      "paginated": false
+    },
+    {
+      "command": [
+        "tables",
+        "delete-table"
+      ],
+      "operationId": "deleteTable",
+      "resource": "tables",
+      "operation": "delete-table",
+      "method": "DELETE",
+      "mutates": true,
+      "path": "/tables/{table_gid}",
+      "summary": "Delete a table",
+      "description": "<b>Required scope: </b><code>tables:delete</code>\n\nA specific, existing table can be deleted by making a DELETE request\non the URL for that table.\n\nReturns an empty data record.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "table_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "paginated": false
+    },
+    {
+      "command": [
+        "tables",
+        "get-custom-field-settings-for-table"
+      ],
+      "operationId": "getCustomFieldSettingsForTable",
+      "resource": "tables",
+      "operation": "get-custom-field-settings-for-table",
+      "method": "GET",
+      "mutates": false,
+      "path": "/tables/{table_gid}/custom_field_settings",
+      "summary": "Get a table's custom field settings",
+      "description": "<b>Required scope: </b><code>tables:read</code>\n\nReturns a paginated list of the custom field settings for the given table.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "table_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "limit",
+          "flag": "--limit",
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "in": "query",
+          "name": "offset",
+          "flag": "--offset",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "paginated": true
+    },
+    {
+      "command": [
+        "tables",
+        "get-custom-field-settings-for-table-legacy"
+      ],
+      "operationId": "getCustomFieldSettingsForTableLegacy",
+      "resource": "tables",
+      "operation": "get-custom-field-settings-for-table-legacy",
+      "method": "GET",
+      "mutates": false,
+      "path": "/tables/{table_gid}/getCustomFieldSettings",
+      "summary": "Get a table's custom field settings",
+      "description": "<b>Required scope: </b><code>tables:read</code>\n\nReturns a paginated list of the custom field settings for the given table.\n\nDeprecated in favor of [Get a table's custom field settings](/reference/getcustomfieldsettingsfortable), which is otherwise identical. Kept for existing callers; new integrations should use the other endpoint instead.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "table_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "limit",
+          "flag": "--limit",
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "in": "query",
+          "name": "offset",
+          "flag": "--offset",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "paginated": true
+    },
+    {
+      "command": [
+        "tables",
+        "get-table"
+      ],
+      "operationId": "getTable",
+      "resource": "tables",
+      "operation": "get-table",
+      "method": "GET",
+      "mutates": false,
+      "path": "/tables/{table_gid}",
+      "summary": "Get a table",
+      "description": "<b>Required scope: </b><code>tables:read</code>\n\nReturns the complete table record for a single table.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "table_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "paginated": false
+    },
+    {
+      "command": [
+        "tables",
+        "get-tables-for-workspace"
+      ],
+      "operationId": "getTablesForWorkspace",
+      "resource": "tables",
+      "operation": "get-tables-for-workspace",
+      "method": "GET",
+      "mutates": false,
+      "path": "/workspaces/{workspace_gid}/tables",
+      "summary": "Get tables in a workspace",
+      "description": "<b>Required scope: </b><code>tables:read</code>\n\nReturns the compact table records for all tables in the given workspace.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "workspace_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "limit",
+          "flag": "--limit",
+          "required": false,
+          "type": "integer"
+        },
+        {
+          "in": "query",
+          "name": "offset",
+          "flag": "--offset",
+          "required": false,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "paginated": true
+    },
+    {
+      "command": [
+        "tables",
+        "remove-custom-field-setting-for-table"
+      ],
+      "operationId": "removeCustomFieldSettingForTable",
+      "resource": "tables",
+      "operation": "remove-custom-field-setting-for-table",
+      "method": "POST",
+      "mutates": true,
+      "path": "/tables/{table_gid}/removeCustomFieldSetting",
+      "summary": "Remove a custom field from a table",
+      "description": "<b>Required scope: </b><code>tables:write</code>\n\nRemoves a custom field setting from a table.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "table_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "body",
+          "name": "body-json",
+          "flag": "--body-json",
+          "required": true,
+          "type": "json|@file|-",
+          "description": "Complete JSON request body, inline, from @file, or stdin"
+        },
+        {
+          "in": "body",
+          "name": "field",
+          "flag": "--field",
+          "required": false,
+          "type": "key=value",
+          "repeatable": true,
+          "description": "Set one request body field; may be repeated"
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentTypes": [
+          "application/json"
+        ],
+        "schemas": {
+          "application/json": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/RemoveCustomFieldSettingRequest"
+              }
+            }
+          }
+        }
+      },
+      "paginated": false
+    },
+    {
+      "command": [
+        "tables",
+        "update-table"
+      ],
+      "operationId": "updateTable",
+      "resource": "tables",
+      "operation": "update-table",
+      "method": "PUT",
+      "mutates": true,
+      "path": "/tables/{table_gid}",
+      "summary": "Update a table",
+      "description": "<b>Required scope: </b><code>tables:write</code>\n\nA specific, existing table can be updated by making a PUT request on\nthe URL for that table. Only the fields provided in the `data` block\nwill be updated; any unspecified fields will remain unchanged.\n\nReturns the complete updated table record.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "table_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "body",
+          "name": "body-json",
+          "flag": "--body-json",
+          "required": true,
+          "type": "json|@file|-",
+          "description": "Complete JSON request body, inline, from @file, or stdin"
+        },
+        {
+          "in": "body",
+          "name": "field",
+          "flag": "--field",
+          "required": false,
+          "type": "key=value",
+          "repeatable": true,
+          "description": "Set one request body field; may be repeated"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "requestBody": {
+        "required": true,
+        "contentTypes": [
+          "application/json"
+        ],
+        "schemas": {
+          "application/json": {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/TableUpdateRequest"
               }
             }
           }
@@ -10144,7 +11491,7 @@
       "mutates": false,
       "path": "/tasks/{task_gid}",
       "summary": "Get a task",
-      "description": "<b>Required scope: </b><code>tasks:read</code>\n\n<table>\n  <tr>\n    <th>Field</th>\n    <th>Required Scope</th>\n  </tr>\n  <tr>\n    <td><code>memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>effective_memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>actual_time_minutes</code></td>\n    <td><code>time_tracking_entries:read</code></td>\n  </tr>\n</table>\n\nReturns the complete task record for a single task.",
+      "description": "<b>Required scope: </b><code>tasks:read</code>\n\n<table>\n  <tr>\n    <th>Field</th>\n    <th>Required Scope</th>\n  </tr>\n  <tr>\n    <td><code>memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>effective_memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>custom_type</code></td>\n    <td><code>custom_types:read</code></td>\n  </tr>\n  <tr>\n    <td><code>custom_type_status_option</code></td>\n    <td><code>custom_types:read</code></td>\n  </tr>\n  <tr>\n    <td><code>actual_time_minutes</code></td>\n    <td><code>time_tracking_entries:read</code></td>\n  </tr>\n</table>\n\nReturns the complete task record for a single task.",
       "parameters": [
         {
           "in": "path",
@@ -10182,7 +11529,7 @@
       "mutates": false,
       "path": "/workspaces/{workspace_gid}/tasks/custom_id/{custom_id}",
       "summary": "Get a task for a given custom ID",
-      "description": "<b>Required scope: </b><code>tasks:read</code>\n\n<table>\n  <tr>\n    <th>Field</th>\n    <th>Required Scope</th>\n  </tr>\n  <tr>\n    <td><code>memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>effective_memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>actual_time_minutes</code></td>\n    <td><code>time_tracking_entries:read</code></td>\n  </tr>\n</table>\n\nReturns a task given a custom ID shortcode.",
+      "description": "<b>Required scope: </b><code>tasks:read</code>\n\n<table>\n  <tr>\n    <th>Field</th>\n    <th>Required Scope</th>\n  </tr>\n  <tr>\n    <td><code>memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>effective_memberships</code></td>\n    <td><code>projects:read</code>, <code>project_sections:read</code></td>\n  </tr>\n  <tr>\n    <td><code>custom_type</code></td>\n    <td><code>custom_types:read</code></td>\n  </tr>\n  <tr>\n    <td><code>custom_type_status_option</code></td>\n    <td><code>custom_types:read</code></td>\n  </tr>\n  <tr>\n    <td><code>actual_time_minutes</code></td>\n    <td><code>time_tracking_entries:read</code></td>\n  </tr>\n</table>\n\nReturns a task given a custom ID shortcode.",
       "parameters": [
         {
           "in": "path",
@@ -10849,6 +12196,44 @@
     {
       "command": [
         "tasks",
+        "rollup-task"
+      ],
+      "operationId": "rollupTask",
+      "resource": "tasks",
+      "operation": "rollup-task",
+      "method": "POST",
+      "mutates": true,
+      "path": "/tasks/{task_gid}/rollup",
+      "summary": "Roll up subtask dates for a task",
+      "description": "<b>Required scope: </b><code>tasks:write</code>\n\nCreates and returns a job that will asynchronously roll up the subtask dates for the subtask tree rooted at the task with the given `task_gid`. Each parent task's start and due dates are reconciled to cover its descendants' date range.",
+      "parameters": [
+        {
+          "in": "path",
+          "name": "task_gid",
+          "required": true,
+          "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "opt_fields",
+          "flag": "--opt-fields",
+          "required": false,
+          "type": "array",
+          "repeatable": true
+        },
+        {
+          "in": "query",
+          "name": "opt_pretty",
+          "flag": "--opt-pretty",
+          "required": false,
+          "type": "boolean"
+        }
+      ],
+      "paginated": false
+    },
+    {
+      "command": [
+        "tasks",
         "search-tasks-for-workspace"
       ],
       "operationId": "searchTasksForWorkspace",
@@ -11075,6 +12460,13 @@
           "flag": "--liked-by-not",
           "required": false,
           "type": "string"
+        },
+        {
+          "in": "query",
+          "name": "limit",
+          "flag": "--limit",
+          "required": false,
+          "type": "integer"
         },
         {
           "in": "query",
@@ -12596,6 +13988,13 @@
       "summary": "Get multiple time tracking entries",
       "description": "<b>Required scope: </b><code>time_tracking_entries:read</code>\n\nReturns a list of time tracking entries filtered to a task, attributed project, portfolio or user.",
       "parameters": [
+        {
+          "in": "query",
+          "name": "assignee",
+          "flag": "--assignee",
+          "required": false,
+          "type": "string"
+        },
         {
           "in": "query",
           "name": "attributable_to",
