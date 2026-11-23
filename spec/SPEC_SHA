@@ -1,5 +1,5 @@
 {
-  "commit": "afaf1635e16da939717b5824c6669aeaaf9520fa",
-  "sha256": "2f7ffc2ad8efc7ccead50377aaebf3ba8d53f74d0c54fe509e411b5ca5290e51",
-  "source": "https://raw.githubusercontent.com/Asana/openapi/afaf1635e16da939717b5824c6669aeaaf9520fa/defs/asana_oas.yaml"
+  "commit": "466e40b476c01ed5e50543a5616bc83d136aba14",
+  "sha256": "48609ae9b7e203fc352cc47f72ac8804aba491ddf1409ec873480f2278ae6131",
+  "source": "https://raw.githubusercontent.com/Asana/openapi/466e40b476c01ed5e50543a5616bc83d136aba14/defs/asana_oas.yaml"
 }
